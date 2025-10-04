@@ -1,0 +1,9 @@
+api-gateway/.env
+api-gateway/__pycache__
+api-gateway/configs/__pycache__
+intent-requirements-service/__pycache__
+intent-requirements-service/configs/__pycache__
+intent-requirements-service/.env
+shared-services/.env
+shared-services/__pycache__
+shared-services/guardrails_config/__pycache__
