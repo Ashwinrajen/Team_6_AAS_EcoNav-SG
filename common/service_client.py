@@ -4,6 +4,20 @@ import json
 import requests
 import boto3
 
+import os, json, requests, boto3
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# resilient session to avoid transient slowdowns
+_session = requests.Session()
+_session.mount("http://", HTTPAdapter(max_retries=Retry(
+    total=2, backoff_factor=0.2, status_forcelist=[429, 500, 502, 503, 504]
+)))
+_session.mount("https://", HTTPAdapter(max_retries=Retry(
+    total=2, backoff_factor=0.2, status_forcelist=[429, 500, 502, 503, 504]
+)))
+
+
 DOWNSTREAM_MODE = os.getenv("DOWNSTREAM_MODE", "HTTP").upper()  # HTTP | LAMBDA
 AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
 
@@ -53,57 +67,53 @@ def _invoke_lambda(function_name: str, method: str, path: str, body: dict):
         return {"success": False, "error": payload}
 
 # -------- Public helpers your api-gateway can use --------
-
+    
 def classify_intent(payload: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
+        # (keep as you have)
         return _invoke_lambda(INTENT_LAMBDA, "POST", "/classify-intent", payload)
-    r = requests.post(f"{INTENT_BASE_URL}/classify-intent", json=payload, timeout=30)
+    r = _session.post(f"{INTENT_BASE_URL}/classify-intent", json=payload, timeout=30)
     r.raise_for_status()
     return r.json()
 
 def gather_requirements(payload: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
         return _invoke_lambda(INTENT_LAMBDA, "POST", "/gather-requirements", payload)
-    r = requests.post(f"{INTENT_BASE_URL}/gather-requirements", json=payload, timeout=60)
+    r = _session.post(f"{INTENT_BASE_URL}/gather-requirements", json=payload, timeout=60)
     r.raise_for_status()
     return r.json()
 
 def create_session(payload: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
         return _invoke_lambda(SHARED_LAMBDA, "POST", "/session/create", payload)
-    r = requests.post(f"{SHARED_BASE_URL}/session/create", json=payload, timeout=10)
+    r = _session.post(f"{SHARED_BASE_URL}/session/create", json=payload, timeout=20)  # was 10
     r.raise_for_status()
     return r.json()
 
 def update_session(session_id: str, updates: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
         return _invoke_lambda(SHARED_LAMBDA, "PUT", f"/session/{session_id}", updates)
-    r = requests.put(f"{SHARED_BASE_URL}/session/{session_id}", json=updates, timeout=10)
+    r = _session.put(f"{SHARED_BASE_URL}/session/{session_id}", json=updates, timeout=20)  # was 10
     r.raise_for_status()
     return r.json()
 
 def get_session(session_id: str):
-    """
-    Fetch a session record from shared-services, via HTTP or Lambda.
-    Used by the UI sidebar through api-gateway's /travel/session/{id} route.
-    """
     if DOWNSTREAM_MODE == "LAMBDA":
-        # For GET, we send an empty body; path carries the id
         return _invoke_lambda(SHARED_LAMBDA, "GET", f"/session/{session_id}", {})
-    r = requests.get(f"{SHARED_BASE_URL}/session/{session_id}", timeout=10)
+    r = _session.get(f"{SHARED_BASE_URL}/session/{session_id}", timeout=15)  # was 10
     r.raise_for_status()
     return r.json()
 
 def validate_input(payload: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
         return _invoke_lambda(SHARED_LAMBDA, "POST", "/security/validate-input", payload)
-    r = requests.post(f"{SHARED_BASE_URL}/security/validate-input", json=payload, timeout=10)
+    r = _session.post(f"{SHARED_BASE_URL}/security/validate-input", json=payload, timeout=20)  # was 10
     r.raise_for_status()
     return r.json()
 
 def validate_output(payload: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
         return _invoke_lambda(SHARED_LAMBDA, "POST", "/security/validate-output", payload)
-    r = requests.post(f"{SHARED_BASE_URL}/security/validate-output", json=payload, timeout=10)
+    r = _session.post(f"{SHARED_BASE_URL}/security/validate-output", json=payload, timeout=45)  # was 10
     r.raise_for_status()
     return r.json()
