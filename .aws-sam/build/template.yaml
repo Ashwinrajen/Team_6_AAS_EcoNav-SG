@@ -30,7 +30,9 @@ Parameters:
     Default: prod
   AwsS3Endpoint:
     Type: String
-    Default: http://localstack:4566
+    Default: ''
+    Description: S3 endpoint URL (leave empty for AWS, use http://localstack:4566
+      for local)
 Resources:
   CommonLayer:
     Type: AWS::Serverless::LayerVersion
@@ -65,9 +67,14 @@ Resources:
         Status: Enabled
       LifecycleConfiguration:
         Rules:
+        - Id: ArchiveOldState
+          Status: Enabled
+          Transitions:
+          - StorageClass: INTELLIGENT_TIERING
+            TransitionInDays: 1
         - Id: ExpireOldState
           Status: Enabled
-          ExpirationInDays: 7
+          ExpirationInDays: 30
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -129,8 +136,18 @@ Resources:
               Ref: HttpApi
             Method: ANY
             Path: /session/{proxy+}
+      LoggingConfig:
+        LogGroup:
+          Fn::Sub: /aws/lambda/${AWS::StackName}-shared-services
+        LogFormat: JSON
     Metadata:
       SamResourceId: SharedServicesFn
+  SharedServicesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AWS::StackName}-shared-services
+      RetentionInDays: 7
   IntentServiceFn:
     Type: AWS::Serverless::Function
     Properties:

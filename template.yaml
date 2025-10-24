@@ -29,10 +29,8 @@ Parameters:
     Default: prod
   AwsS3Endpoint:
     Type: String
-    # IMPORTANT:
-    # - Local (SAM): default is localstack hostname reachable by lambdas on docker network
-    # - Prod: pass empty string "" via parameter override
-    Default: http://localstack:4566
+    Default: ""  # Empty for production AWS
+    Description: "S3 endpoint URL (leave empty for AWS, use http://localstack:4566 for local)"
 
 Resources:
   # Common dependencies layer
@@ -71,9 +69,14 @@ Resources:
         Status: Enabled
       LifecycleConfiguration:
         Rules:
+          - Id: ArchiveOldState
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 1
           - Id: ExpireOldState
             Status: Enabled
-            ExpirationInDays: 7
+            ExpirationInDays: 30  # Extended for compliance
 
   # API Gateway (HTTP)
   HttpApi:
@@ -129,6 +132,15 @@ Resources:
             ApiId: !Ref HttpApi
             Method: ANY
             Path: /session/{proxy+}
+      LoggingConfig:
+        LogGroup: !Sub '/aws/lambda/${AWS::StackName}-shared-services'
+        LogFormat: JSON
+
+  SharedServicesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-shared-services'
+      RetentionInDays: 7
 
   # Intent Requirements Service
   IntentServiceFn:
