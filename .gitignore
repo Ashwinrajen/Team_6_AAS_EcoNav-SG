@@ -10,3 +10,4 @@ shared-services/guardrails_config/__pycache__
 common/__pycache__
 layers/
 .aws-sam/
+env.local.json
