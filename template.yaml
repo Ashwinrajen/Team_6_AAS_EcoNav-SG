@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Travel Planner with Docker Container Images (solves 250MB layer limit)
+Description: Travel Planner with Docker Container Images (OpenAI Guardrails)
 
 Globals:
   Function:
@@ -72,14 +72,14 @@ Resources:
         ThrottlingBurstLimit: 100
         ThrottlingRateLimit: 50
 
-  # Shared Services - Docker Container
+  # Shared Services - Docker Container (with OpenAI Moderation)
   SharedServicesFn:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: shared-services
       PackageType: Image
-      MemorySize: 3008
-      Timeout: 300
+      MemorySize: 1024  # Reduced from 3008 (OpenAI API is lighter)
+      Timeout: 60       # Reduced from 300 (faster than NeMo)
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref StateBucketName
@@ -91,7 +91,7 @@ Resources:
           AWS_S3_ENDPOINT: !Ref AwsS3Endpoint
           USE_S3: "true"
           GUARDRAILS_ENABLED: "true"
-          GUARDRAILS_TIMEOUT: "20"
+          GUARDRAILS_TIMEOUT: "10"
       Events:
         SharedRoutes:
           Type: HttpApi

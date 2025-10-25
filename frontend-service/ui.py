@@ -7,7 +7,8 @@ from typing import Dict, Any, Optional
 import time
 
 # Configuration
-API_GATEWAY_URL = "http://localhost:8000"
+# API_GATEWAY_URL = "http://localhost:8000"
+API_GATEWAY_URL = "https://ls9comshu2.execute-api.ap-southeast-2.amazonaws.com"
 
 class TravelGatewayClient:
     """Simplified client for travel gateway API"""

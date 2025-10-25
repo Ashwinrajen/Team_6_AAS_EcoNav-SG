@@ -1,18 +1,7 @@
 FROM public.ecr.aws/lambda/python:3.11
 
-# Install build dependencies
-RUN yum install -y gcc gcc-c++ make wget tar gzip git
-
-# Install CMake
-RUN cd /tmp && \
-    wget -q https://github.com/Kitware/CMake/releases/download/v3.25.1/cmake-3.25.1-linux-x86_64.tar.gz && \
-    tar -xzf cmake-3.25.1-linux-x86_64.tar.gz && \
-    cp -r cmake-3.25.1-linux-x86_64/bin/* /usr/local/bin/ && \
-    cp -r cmake-3.25.1-linux-x86_64/share/* /usr/local/share/ && \
-    rm -rf /tmp/cmake-3.25.1*
-
-# Copy ALL requirement files (FIXED: use requirements-lambda.txt)
-COPY layers/nemo/requirements.txt /tmp/nemo-requirements.txt
+# Copy ALL requirement files (using openai layer now)
+COPY layers/openai/requirements.txt /tmp/openai-requirements.txt
 COPY layers/common/requirements.txt /tmp/common-requirements.txt
 COPY shared-services/requirements-lambda.txt /tmp/requirements.txt
 
@@ -20,20 +9,19 @@ COPY shared-services/requirements-lambda.txt /tmp/requirements.txt
 RUN pip install --upgrade pip setuptools wheel && \
     echo "Installing common dependencies..." && \
     pip install --no-cache-dir --prefer-binary --retries 3 -r /tmp/common-requirements.txt && \
-    echo "Installing nemo dependencies..." && \
-    pip install --no-cache-dir --prefer-binary --retries 3 -r /tmp/nemo-requirements.txt && \
+    echo "Installing openai dependencies..." && \
+    pip install --no-cache-dir --prefer-binary --retries 3 -r /tmp/openai-requirements.txt && \
     echo "Installing service-specific dependencies..." && \
     pip install --no-cache-dir --prefer-binary --retries 3 -r /tmp/requirements.txt
 
-# CRITICAL: Verify imports work before deploying (ADDED)
+# CRITICAL: Verify imports work before deploying
 RUN echo "Verifying critical imports..." && \
-    python -c "import nemoguardrails; print('✅ nemoguardrails imported')" && \
-    python -c "from nemoguardrails import RailsConfig, LLMRails; print('✅ nemoguardrails classes imported')" && \
+    python -c "from openai import AsyncOpenAI; print('✅ openai imported')" && \
     python -c "import fastapi; print('✅ fastapi imported')" && \
     python -c "import boto3; print('✅ boto3 imported')" && \
     echo "✅ All critical imports successful"
 
-# Copy application code (FIXED: include guardrails_config directory)
+# Copy application code (NO MORE guardrails_config directory needed)
 COPY shared-services/ ${LAMBDA_TASK_ROOT}/
 
 # Set working directory

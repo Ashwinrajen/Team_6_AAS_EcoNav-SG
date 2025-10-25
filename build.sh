@@ -24,13 +24,13 @@ rm -rf .aws-sam
 # Defensive cleanup of any partial site-packages from earlier failed runs
 find layers -maxdepth 3 -type d -name "__pycache__" -prune -exec rm -rf {} + || true
 
-# Ensure layer python dirs exist
-mkdir -p layers/crewai/python layers/nemo/python layers/common/python
+# Ensure layer python dirs exist (renamed nemo to openai)
+mkdir -p layers/crewai/python layers/openai/python layers/common/python
 
 # -----------------------------
 # Clean layers
 # -----------------------------
-rm -rf layers/crewai/python/* layers/nemo/python/* layers/common/python/* || true
+rm -rf layers/crewai/python/* layers/openai/python/* layers/common/python/* || true
 
 # -----------------------------
 # Build layers (hardened pip in Docker)
@@ -48,13 +48,12 @@ docker run --rm --network host -v "$PWD":/var/task public.ecr.aws/sam/build-pyth
       -r layers/crewai/requirements.txt -t layers/crewai/python/
   '
 
-# After each layer build, add:
 if [ ! -d "layers/crewai/python" ] || [ -z "$(ls -A layers/crewai/python)" ]; then
     echo -e "${RED}Failed to build CrewAI layer${NC}"
     exit 1
 fi
 
-# ---- NeMo layer (pins LC 0.1.x compatible with nemoguardrails 0.7.0) ----
+# ---- OpenAI layer (renamed from nemo) ----
 docker run --rm --network host -v "$PWD":/var/task public.ecr.aws/sam/build-python3.11:latest \
   /bin/bash -lc '
     set -euo pipefail
@@ -62,12 +61,11 @@ docker run --rm --network host -v "$PWD":/var/task public.ecr.aws/sam/build-pyth
     pip cache purge || true &&
     PIP_NO_CACHE_DIR=1 pip install \
       --retries 8 --timeout 120 --prefer-binary -i https://pypi.org/simple \
-      -r layers/nemo/requirements.txt -t layers/nemo/python/
+      -r layers/openai/requirements.txt -t layers/openai/python/
   '
 
-# After each layer build, add:
-if [ ! -d "layers/nemo/python" ] || [ -z "$(ls -A layers/nemo/python)" ]; then
-    echo -e "${RED}Failed to build nemo layer${NC}"
+if [ ! -d "layers/openai/python" ] || [ -z "$(ls -A layers/openai/python)" ]; then
+    echo -e "${RED}Failed to build openai layer${NC}"
     exit 1
 fi
 
@@ -82,7 +80,6 @@ docker run --rm --network host -v "$PWD":/var/task public.ecr.aws/sam/build-pyth
       -r layers/common/requirements.txt -t layers/common/python/
   '
 
-# After each layer build, add:
 if [ ! -d "layers/common/python" ] || [ -z "$(ls -A layers/common/python)" ]; then
     echo -e "${RED}Failed to build common layer${NC}"
     exit 1
@@ -90,7 +87,6 @@ fi
 
 # -----------------------------
 # Swap in lambda-specific requirements for each service
-# (temporary copy during build; restored after)
 # -----------------------------
 echo -e "${YELLOW}Preparing service requirements...${NC}"
 

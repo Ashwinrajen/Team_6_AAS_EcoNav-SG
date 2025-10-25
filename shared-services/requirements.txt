@@ -1,4 +1,7 @@
 fastapi==0.104.1
 uvicorn==0.24.0
 mangum==0.17.0
-# All other deps from nemo layer
+openai==1.40.0
+python-dotenv==1.0.0
+httpx==0.27.0
+# All other deps from openai layer
