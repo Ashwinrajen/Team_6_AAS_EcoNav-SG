@@ -30,7 +30,13 @@ from common.service_client import (
 # ---------------------------------------------------------------------------
 # Environment setup
 # ---------------------------------------------------------------------------
-load_dotenv()
+# Only load .env if not running in Lambda/SAM environment
+if not os.getenv('AWS_LAMBDA_FUNCTION_NAME') and not os.getenv('AWS_SAM_LOCAL'):
+    load_dotenv()
+    print("[API-GATEWAY] Loaded .env file")
+else:
+    print("[API-GATEWAY] Running in Lambda/SAM - using environment variables")
+
 DOWNSTREAM_MODE = os.getenv("DOWNSTREAM_MODE", "HTTP").upper()
 
 # ---------------------------------------------------------------------------

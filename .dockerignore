@@ -2,5 +2,11 @@
 __pycache__/
 *.pyc
 .env
+*.env
+.env.*
 .git/
 *.backup
+*.log
+.venv/
+venv/
+env/

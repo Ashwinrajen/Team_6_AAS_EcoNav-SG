@@ -18,16 +18,27 @@ _session.mount("https://", HTTPAdapter(max_retries=Retry(
 )))
 
 
-DOWNSTREAM_MODE = os.getenv("DOWNSTREAM_MODE", "HTTP").upper()  # HTTP | LAMBDA
-AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
+DOWNSTREAM_MODE = os.getenv("DOWNSTREAM_MODE")
+AWS_REGION = os.getenv("AWS_REGION")
 
 # For HTTP mode (local dev)
-INTENT_BASE_URL  = os.getenv("INTENT_SERVICE_URL",  "http://localhost:8001")
-SHARED_BASE_URL  = os.getenv("SHARED_SERVICES_URL", "http://localhost:8004")
+INTENT_BASE_URL  = os.getenv("INTENT_SERVICE_URL")
+SHARED_BASE_URL  = os.getenv("SHARED_SERVICES_URL")
 
 # For Lambda mode (deploy)
-INTENT_LAMBDA  = os.getenv("INTENT_SERVICE_LAMBDA",  "intent-requirements-service")
-SHARED_LAMBDA  = os.getenv("SHARED_SERVICES_LAMBDA", "shared-services")
+INTENT_LAMBDA  = os.getenv("INTENT_SERVICE_LAMBDA")
+SHARED_LAMBDA  = os.getenv("SHARED_SERVICES_LAMBDA")
+
+# Debug logging
+print("=" * 60)
+print("[SERVICE_CLIENT] Configuration:")
+print(f"  DOWNSTREAM_MODE     : {DOWNSTREAM_MODE}")
+print(f"  AWS_REGION          : {AWS_REGION}")
+print(f"  INTENT_BASE_URL     : {INTENT_BASE_URL}")
+print(f"  SHARED_BASE_URL     : {SHARED_BASE_URL}")
+print(f"  INTENT_LAMBDA       : {INTENT_LAMBDA}")
+print(f"  SHARED_LAMBDA       : {SHARED_LAMBDA}")
+print("=" * 60)
 
 _lambda = None
 def _lambda_client():
