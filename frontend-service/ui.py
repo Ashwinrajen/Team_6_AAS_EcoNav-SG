@@ -54,7 +54,8 @@ class TravelGatewayClient:
             "session_id": session_id or "unknown",
             "intent": "error",
             "conversation_state": "error",
-            "trust_score": 0.0
+            "trust_score": 0.0,
+            "collection_complete": False
         }
 
 def initialize_session():
@@ -67,6 +68,12 @@ def initialize_session():
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    
+    if "collection_complete" not in st.session_state:
+        st.session_state.collection_complete = False
+    
+    if "final_json_info" not in st.session_state:
+        st.session_state.final_json_info = None
 
 def display_sidebar():
     """Display sidebar with session info and controls"""
@@ -75,36 +82,75 @@ def display_sidebar():
         
         # Session metrics
         if st.session_state.session_id:
-            info = st.session_state.gateway_client.get_session_info(st.session_state.session_id)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Messages", len(st.session_state.messages) // 2)
-            with col2:
-                trust_score = info.get("trust_score", 1.0)
-                st.metric("Trust Score", f"{trust_score:.2f}")
-            
-            # Conversation state
-            state = info.get("conversation_state", "unknown")
-            st.info(f"State: {state.replace('_', ' ').title()}")
+            try:
+                info = st.session_state.gateway_client.get_session_info(st.session_state.session_id)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Messages", len(st.session_state.messages) // 2)
+                with col2:
+                    trust_score = info.get("trust_score", 1.0)
+                    st.metric("Trust Score", f"{trust_score:.2f}")
+                
+                # Conversation state
+                state = info.get("conversation_state", "unknown")
+                st.info(f"State: {state.replace('_', ' ').title()}")
+                
+                # Show completion status
+                if st.session_state.collection_complete:
+                    st.success("✅ Collection Complete!")
+                    
+                    # Show final JSON info if available
+                    if st.session_state.final_json_info:
+                        with st.expander("📋 Final JSON Info"):
+                            st.json(st.session_state.final_json_info)
+            except Exception:
+                st.warning("Could not load session info")
         else:
             st.info("No active session")
         
         st.divider()
         
-        # Control buttons
-        if st.button("New Session", use_container_width=True):
-            st.session_state.session_id = None
-            st.session_state.messages = []
-            st.rerun()
+        # Control buttons with unique keys
+        st.markdown("### Actions")
         
-        if st.button("Clear Chat", use_container_width=True):
+        # NEW SESSION: Completely fresh start
+        if st.button("🆕 New Session", key="new_session_btn", use_container_width=True, type="primary"):
+            # Reset EVERYTHING for a fresh start
+            st.session_state.session_id = None  # Force new session creation
             st.session_state.messages = []
-            st.rerun()
+            st.session_state.collection_complete = False
+            st.session_state.final_json_info = None
+            # Streamlit will automatically rerun when session state changes
+        
+        st.caption("Starts a completely new travel planning session")
+        
+        st.divider()
+        
+        # CLEAR CHAT: Only clear UI messages, keep session data
+        if st.button("🧹 Clear Chat", key="clear_chat_btn", use_container_width=True):
+            # Only clear messages, keep session and completion status
+            st.session_state.messages = []
+            # Streamlit will automatically rerun when session state changes
+        
+        st.caption("Clears chat display only (keeps session data)")
+        
+        st.divider()
+        
+        # Session ID display
+        if st.session_state.session_id:
+            with st.expander("🔑 Session Details"):
+                st.code(st.session_state.session_id)
+                st.caption("Current session identifier")
 
 def display_chat_interface():
     """Main chat interface"""
     st.subheader("Chat with Travel Assistant")
+    
+    # Show completion banner if complete
+    if st.session_state.collection_complete:
+        st.success("🎉 **All travel requirements collected!** Your information has been processed and sent to the planning agent.")
+        st.info("💡 Click **🆕 New Session** in the sidebar to plan another trip.")
     
     # Display message history
     for message in st.session_state.messages:
@@ -114,15 +160,16 @@ def display_chat_interface():
             # Show metadata for assistant messages
             if message["role"] == "assistant" and "metadata" in message:
                 metadata = message["metadata"]
-                col1, col2 = st.columns([1, 1])
                 
-                with col1:
-                    if metadata.get("intent"):
-                        st.caption(f"Intent: {metadata['intent']}")
+                # Show metadata in a compact format
+                meta_parts = []
+                if metadata.get("intent"):
+                    meta_parts.append(f"Intent: {metadata['intent']}")
+                if metadata.get("trust_score"):
+                    meta_parts.append(f"Trust: {metadata['trust_score']:.2f}")
                 
-                with col2:
-                    if metadata.get("trust_score"):
-                        st.caption(f"Trust: {metadata['trust_score']:.2f}")
+                if meta_parts:
+                    st.caption(" | ".join(meta_parts))
 
 def process_user_input(user_input: str):
     """Process user input and update chat"""
@@ -144,6 +191,20 @@ def process_user_input(user_input: str):
         if not st.session_state.session_id and result.get("session_id"):
             st.session_state.session_id = result["session_id"]
         
+        # Check for collection completion
+        if result.get("collection_complete", False):
+            st.session_state.collection_complete = True
+            
+            # Store final JSON info for display
+            st.session_state.final_json_info = {
+                "session_id": result.get("session_id"),
+                "s3_key": result.get("final_json_s3_key"),
+                "planning_agent_status": result.get("planning_agent_status"),
+            }
+            
+            # Show completion indicator
+            st.balloons()
+        
         # Display response
         response_text = result.get("response", "No response received")
         st.write(response_text)
@@ -156,42 +217,75 @@ def process_user_input(user_input: str):
                 "intent": result.get("intent"),
                 "conversation_state": result.get("conversation_state"),
                 "trust_score": result.get("trust_score"),
-                "success": result.get("success", False)
+                "success": result.get("success", False),
+                "collection_complete": result.get("collection_complete", False)
             }
         })
         
         # Show status indicators
         if result.get("success"):
             intent = result.get("intent", "unknown")
-            st.caption(f"Intent: {intent} | State: {result.get('conversation_state', 'unknown')}")
+            state = result.get("conversation_state", "unknown")
+            
+            if result.get("collection_complete"):
+                st.success(f"✅ Complete | Intent: {intent} | State: {state}")
+            else:
+                st.caption(f"Intent: {intent} | State: {state}")
         else:
             st.error("Processing failed - please try again")
+    
+    # Force rerun after completion to update UI immediately
+    if result.get("collection_complete", False):
+        st.rerun()
 
 def display_help_section():
     """Display help and usage information"""
-    with st.expander("How to use this system"):
+    with st.expander("ℹ️ How to use this system"):
         st.markdown("""
-        **Travel Planning Assistant Features:**
+        ### Travel Planning Assistant Features
         
-        **Intent Classification:**
+        #### 🎯 Intent Classification
         - Understands greetings, travel planning requests, and other topics
         - Redirects off-topic conversations back to travel
         
-        **Requirements Gathering:**
-        - Collects destination, dates, budget, and preferences
+        #### 📝 Requirements Gathering
+        - **Required:** destination, dates, duration, budget (SGD), pace
+        - **Optional:** interests, dietary needs, eco preferences, group type
         - Adapts questions based on your responses
         - Handles changes and corrections naturally
         
-        **Security & Trust:**
+        #### ✅ Completion Detection
+        - Automatically detects when all required information is collected
+        - Generates final JSON and stores in S3
+        - Disables chat input to prevent additional messages
+        - Sends data to planning agent for next steps
+        
+        #### 🔒 Security & Trust
         - Validates inputs and outputs for safety
         - Calculates trust scores based on interaction history
         - Blocks inappropriate or harmful content
         
-        **Example Conversations:**
-        - "Hello, I want to plan a trip"
-        - "I need help planning a vacation to Japan for next month"
-        - "What's a good budget for a week in Europe?"
-        - "I want to visit Singapore in December for 5 days"
+        #### 💡 Example Conversations
+        
+        **Simple:**
+```
+        "Hello!"
+        "I want to visit Singapore from Dec 20-25"
+        "Budget is 2000 SGD"
+        "Relaxed pace, interested in gardens"
+```
+        
+        **All-in-one:**
+```
+        "I want to visit Singapore from December 20-25, 2025 
+        with a budget of 2000 SGD, relaxed pace, 
+        interested in gardens and museums"
+```
+        
+        #### 🔄 After Completion
+        - Chat input will be **disabled**
+        - Click **🆕 New Session** to start planning another trip
+        - Click **🧹 Clear Chat** to just clear the display
         """)
 
 def main():
@@ -204,12 +298,17 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    # Initialize session state FIRST
+    initialize_session()
+    
     # Header
     st.title("✈️ Travel Planning Assistant")
-    st.caption("AI-powered travel planning with intelligent conversation")
     
-    # Initialize
-    initialize_session()
+    # Dynamic caption based on completion status
+    if st.session_state.collection_complete:
+        st.caption("✅ Requirements collection complete - Ready for planning!")
+    else:
+        st.caption("AI-powered travel planning with intelligent conversation")
     
     # Layout
     col1, col2 = st.columns([3, 1])
@@ -222,8 +321,14 @@ def main():
         display_sidebar()
         display_help_section()
     
-    if user_input := st.chat_input("Ask me about travel planning..."):
-        process_user_input(user_input)
+    # Conditional chat input - disable when collection is complete
+    if not st.session_state.collection_complete:
+        user_input = st.chat_input("Ask me about travel planning...")
+        if user_input:
+            process_user_input(user_input)
+    else:
+        # Show disabled state with message
+        st.chat_input("Collection complete - Start a new session to continue", disabled=True)
 
 if __name__ == "__main__":
     main()

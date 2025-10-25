@@ -10,7 +10,6 @@ Globals:
     Environment:
       Variables:
         USE_S3: "true"
-        AWS_REGION: !Ref AWS::Region
         AWS_S3_ENDPOINT: !Ref AwsS3Endpoint
 
 Parameters:
@@ -69,7 +68,6 @@ Resources:
       PackageType: Image
       MemorySize: 2048
       Timeout: 180
-      ReservedConcurrentExecutions: 10
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref StateBucketName
@@ -121,7 +119,6 @@ Resources:
       PackageType: Image
       MemorySize: 3008
       Timeout: 300
-      ReservedConcurrentExecutions: 10
       EphemeralStorage:
         Size: 2048
       Policies:
@@ -156,7 +153,6 @@ Resources:
       PackageType: Image
       MemorySize: 1024
       Timeout: 330
-      ReservedConcurrentExecutions: 20
       Policies:
         - Version: '2012-10-17'
           Statement:

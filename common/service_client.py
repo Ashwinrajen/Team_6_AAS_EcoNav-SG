@@ -118,13 +118,13 @@ def get_session(session_id: str):
 def validate_input(payload: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
         return _invoke_lambda(SHARED_LAMBDA, "POST", "/security/validate-input", payload)
-    r = _session.post(f"{SHARED_BASE_URL}/security/validate-input", json=payload, timeout=20)  # was 10
+    r = _session.post(f"{SHARED_BASE_URL}/security/validate-input", json=payload, timeout=60)  # was 10
     r.raise_for_status()
     return r.json()
 
 def validate_output(payload: dict):
     if DOWNSTREAM_MODE == "LAMBDA":
         return _invoke_lambda(SHARED_LAMBDA, "POST", "/security/validate-output", payload)
-    r = _session.post(f"{SHARED_BASE_URL}/security/validate-output", json=payload, timeout=45)  # was 10
+    r = _session.post(f"{SHARED_BASE_URL}/security/validate-output", json=payload, timeout=60)  # was 10
     r.raise_for_status()
     return r.json()

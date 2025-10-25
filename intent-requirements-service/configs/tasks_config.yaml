@@ -1,7 +1,4 @@
 # intent-requirements-service/configs/tasks_config.yaml
-# Drop-in replacement. Same headings & fields, but stricter rules, multilingual cues,
-# deterministic behavior, and clearer output contracts. Keep {user_input}, {max_tokens},
-# {conversation_history}, {current_requirements}, {phase}, {target_json} as-is.
 
 binary_intent_classification:
   description: |
@@ -12,33 +9,23 @@ binary_intent_classification:
     - "planning": User wants to plan, travel, visit, go somewhere, book, change travel plans, or anything travel-related
     - "other": Everything else - random questions, off-topic conversations, unrelated topics
 
-    DETERMINISTIC RULES:
-    - Normalize (lowercase, trim, strip punctuation/emoji).
-    - PRIORITY: If both greeting and planning are present, return "planning".
-    - PLANNING signals (non-exhaustive, multilingual):
-      en: plan, planning, travel, trip, visit, go to, book, booking, change plan, itinerary, vacation, holiday, flight, hotel
-      ta: பயணம், சுற்றுலா, டூர், டிக்கெட், ஹோட்டல், புக்
-      hi: यात्रा, घूमना, टिकट, होटल, बुक, प्लान
-      ms: melancong, bercuti, tempah, tiket, hotel, perjalanan
-      zh: 旅行, 出游, 行程, 机票, 酒店, 预订, 规划
-    - Numeric-only time/cost utterances typically used in travel (e.g., "6 days", "900 dollars") → "planning".
-    - GREETING signals (multilingual):
-      hello, hi, hey, good morning/afternoon/evening, how are you, thanks/thank you, vanakkam, namaste, selamat pagi, 早上好
-    - Toxic/off-topic/small talk without travel intent → "other".
+    REASONING APPROACH:
+    1. Look for greeting words (hello, hi, hey, good morning, how are you, etc.)
+    2. Look for travel/planning intent (want to go, plan trip, visit, travel to, book, change plans, etc.)
+    3. If both greeting or planning is present, prioritize planning over greeting
+    4. If neither greeting nor travel-related, classify as "other"
     
     EXAMPLES:
     - "Are you a chatbot?" → other
     - "What's the carbon footprint?" → other  
-    - "You are dumb" → other
+    - "You are dump" → other
     - "Thank you" → greeting
     - "Nah" → other
     - "Change to India" → planning
     - "6 days" → planning
     - "900 dollars" → planning
-    - "Hi, can you book Tokyo?" → planning
     
     RESPONSE FORMAT: Return only one word - either "greeting", "planning", or "other"
-    VALIDATION: No quotes, punctuation, or extra text; single token only.
     TOKEN LIMIT: Maximum {max_tokens} tokens total.
     
   expected_output: Single word - "greeting", "planning", or "other"
@@ -81,7 +68,7 @@ comprehensive_requirements_collection:
     - Calculate duration from dates: (end_date - start_date + 1 day)
     - If dates change, recalculate duration automatically
     - If user says "wrong" or "actually", update only the specific field mentioned
-
+    
     COMPLETE FIELD MAPPING:
     REQUIRED FIELDS (must collect these):
     - destination_city: City name (e.g., "Singapore", "Paris", "Tokyo")
@@ -98,7 +85,7 @@ comprehensive_requirements_collection:
     - optional.uninterests: Array of things to avoid (e.g., ["zoo", "crowds", "shopping"])
     - optional.accessibility_needs: Specific needs (e.g., "wheelchair_friendly", "visual_impaired") or null
     - optional.accommodation_location.neighborhood: Area name (e.g., "Clarke Quay", "Marina Bay") or null
-    - optional.group_type: One of "solo", "couple", "family", "friends")
+    - optional.group_type: One of "solo", "couple", "family", "friends"
     
     ADVANCED REASONING TASKS:
     
@@ -111,12 +98,21 @@ comprehensive_requirements_collection:
     2. INTELLIGENT EXTRACTION & VALIDATION:
        - Use reasoning to infer information from natural language
        - Handle dates in any format (Dec 20, 20th December, next week, Christmas, etc.)
-       - If no year mentioned, assume 2025 (Dec 20 → 2025-12-20) and convert to YYYY-MM-DD
-       - Always compute duration_days from dates; if user gives both, prefer computed duration
-       - Parse budgets like "$500", "about 600", "1.2k" → 1200; if non-SGD, ask for SGD value (do not guess FX)
-       - Map lifestyle to pace: chill/easy/laid back → relaxed; busy/active/packed → fast
-       - Validate: destination must be a real city (title case); end_date ≥ start_date; dates not unreasonably far past
-       - If ambiguous (two destinations, unclear dates), ask ONE clarifying question
+       - Handle dates: If no year mentioned, assume 2025 (Dec 20 = 2025-12-20)
+       - Convert dates to YYYY-MM-DD format intelligently
+       - Understand budget expressions ($500, five hundred, around 600 SGD, tight budget, luxury, etc.)
+       - Calculate duration_days from date range automatically
+       - Interpret location preferences (near beach, city center, quiet area, downtown, etc.)
+       - Recognize activity interests (sightseeing = museums+landmarks, nature = gardens+parks, etc.)
+       - Map lifestyle preferences to pace (chill/easy = relaxed, busy/active = fast, etc.)
+       - Understand group dynamics (with kids = family, with partner = couple, etc.)
+
+       - CRITICAL: Always calculate duration_days from start_date and end_date automatically
+       - Ensure destination cities are real places (not fictional like "la la land")
+       - Keep consistent capitalization for place names
+       - If user corrects something, update ONLY that field, keep everything else intact
+       - ALWAYS preserve existing data unless user explicitly asks to change specific fields
+       - If user mentions duration AND provides dates, IGNORE the mentioned duration and calculate from dates
     
     3. EDGE CASE HANDLING:
        - If user wants to change previous answers, update accordingly and acknowledge the change
@@ -127,36 +123,33 @@ comprehensive_requirements_collection:
        - If user is vague, ask follow-up questions to clarify
     
     4. ADAPTIVE QUESTIONING STRATEGY:
-       - For Phase "initial": Ask ONE comprehensive question covering destination, dates, budget (SGD), and pace
-       - For Phase "collecting": Focus on the single most critical missing required field
-       - For Phase "refining": Confirm modifications, then ask ONE optional preference
-       - Always ask only ONE question at a time; acknowledge what’s already known
+       - For Phase "initial": Ask ONE comprehensive question covering all aspects
+       - For Phase "collecting": Focus on most critical missing required fields first
+       - For Phase "refining": Handle modifications, clarifications, or optional details
+       - Always ask only ONE question at a time
+       - Make questions conversational and context-aware
+       - Reference what they've already told you to show you're listening
     
     5. COMPLETION LOGIC:
        - Required fields: destination_city, trip_dates.start_date, trip_dates.end_date, duration_days, budget_total_sgd, pace
-       - Mark complete when ALL required fields have valid values and duration matches date range
+       - Mark complete when ALL required fields have valid values
        - Be intelligent about validation:
-         * Dates should be logical and usually in the future for planning
-         * End date should be after or equal to start date
-         * Duration must match the computed date difference + 1 day
-         * Budget should be reasonable (100–200000 SGD)
-         * Destination should be a real place (not fictional)
+         * Dates should be logical and in the future
+         * End date should be after start date
+         * Duration should match the date range
+         * Budget should be reasonable (not 0 or millions)
+         * Destination should be a real place
     
     6. RESPONSE FORMATTING:
       - Keep responses SHORT (maximum 2-3 sentences)
       - Always acknowledge what the user said first before asking new questions
       - Be warm but concise, encouraging, and professional
-      - Mention sustainable travel preferences once required fields are complete
+      - Show enthusiasm for their trip plans
+      - Reference sustainable travel when appropriate
     
     RESPONSE FORMAT:
     EXTRACTED_JSON: {{your updated json with all extracted information}}
     RESPONSE: Your conversational response with next question or completion message
-    PHASE: "initial" | "collecting" | "refining" | "complete"
-    VALIDATION:
-      - EXTRACTED_JSON must be valid JSON (no code fences)
-      - RESPONSE must contain at most ONE question mark
-      - PHASE must be one of the allowed values
-    
     TOKEN LIMIT: Keep entire response under {max_tokens} tokens.
     
   expected_output: JSON extraction, conversational response, and phase indicator
@@ -170,14 +163,8 @@ greeting_to_planning_transition:
     APPROACH:
     1. Short, warm greeting (1 sentence)
     2. Brief introduction as travel assistant (1 sentence)
-    3. Ask ONE simple question covering: destination, dates, budget (SGD), and travel style (pace: relaxed/moderate/fast)
+    3. Ask ONE simple question covering: destination, dates, budget, and travel style
     
-    ADDITIONAL RULES:
-    - ≤ 3 sentences total
-    - Exactly ONE question mark in the entire message
-    - If the greeting is multilingual, keep the greeting tone but respond in English
-    
-    EXAMPLE:
-    - "Hi there! I’m here to help plan your trip. Where are you headed, which dates are you considering, roughly what’s your budget in SGD, and do you prefer a relaxed, moderate, or fast pace?"
+    Keep the entire response under 3 sentences. Be conversational but concise.
     
   expected_output: Brief greeting with one comprehensive but short travel planning question

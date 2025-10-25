@@ -56,6 +56,8 @@ class RequirementsResponse(BaseModel):
     intent: str
     requirements_extracted: bool
     requirements_data: Optional[Dict[str, Any]] = Field(default=None)
+    completion_status: str = Field(default="incomplete")  # NEW
+    interests: list = Field(default_factory=list)         # NEW
 
 # -------------------------------------------------
 # Helpers
@@ -76,6 +78,29 @@ def _from_ddb(obj):
     if isinstance(obj, dict):
         return {k: _from_ddb(v) for k, v in obj.items()}
     return obj
+
+def _print_extracted_json(extracted_json: Dict[str, Any], session_id: str):
+    """Print extracted JSON to terminal for visibility"""
+    print("\n" + "=" * 80)
+    print(f"📊 EXTRACTED REQUIREMENTS FOR SESSION: {session_id}")
+    print("=" * 80)
+    print(json.dumps(extracted_json, indent=2, ensure_ascii=False))
+    print("=" * 80 + "\n")
+
+def _extract_interests(requirements: Dict[str, Any]) -> list:
+    """Extract interests from requirements optional fields"""
+    try:
+        reqs = requirements.get("requirements", {})
+        optional = reqs.get("optional", {})
+        interests = optional.get("interests", [])
+        
+        # Ensure it's a list
+        if isinstance(interests, list):
+            return [str(i).strip() for i in interests if i]
+        return []
+    except Exception as e:
+        print(f"⚠️ Error extracting interests: {e}")
+        return []
 
 # -------------------------------------------------
 # Service
@@ -271,7 +296,9 @@ class IntentRequirementsService:
                 "response": response,
                 "intent": "greeting",
                 "requirements_extracted": False,
-                "requirements_data": session["requirements"]
+                "requirements_data": session["requirements"],
+                "completion_status": "incomplete",  
+                "interests": []                     
             }
             return result
             
@@ -285,7 +312,9 @@ class IntentRequirementsService:
                 "response": fallback,
                 "intent": "greeting",
                 "requirements_extracted": False,
-                "requirements_data": session["requirements"]
+                "requirements_data": session["requirements"],
+                "completion_status": "incomplete", 
+                "interests": []                    
             }
     
     async def _handle_planning(self, user_input: str, session_id: str) -> Dict:
@@ -333,17 +362,26 @@ class IntentRequirementsService:
             if json_match:
                 try:
                     extracted_json = json.loads(json_match.group(1))
-                    print("📊 EXTRACTED JSON:")
-                    print(json.dumps(extracted_json, indent=2))
+                    _print_extracted_json(extracted_json, session_id)
                     updated_requirements = extracted_json
                 except json.JSONDecodeError as e:
                     print(f"{Fore.YELLOW}⚠️ JSON parsing failed, using existing requirements: {e}{Style.RESET_ALL}")
             
             # Check completion
             requirements_extracted = self._check_completion(updated_requirements)
+
+            completion_status = "complete" if requirements_extracted else "incomplete"
+            interests = _extract_interests(updated_requirements)
+
             if requirements_extracted:
                 new_phase = "complete"
                 response_text += "\n\nExcellent! I have all the information needed for your sustainable travel planning."
+                
+                # ✅ NEW: Print completion notice
+                print(f"\n{Fore.GREEN}{'=' * 80}")
+                print(f"✅ REQUIREMENTS COLLECTION COMPLETE FOR SESSION: {session_id}")
+                print(f"🎯 Interests: {interests}")
+                print(f"{'=' * 80}{Style.RESET_ALL}\n")
             
             # Persist updates (history + requirements + phase)
             self._update_session(
@@ -358,7 +396,9 @@ class IntentRequirementsService:
                 "response": response_text,
                 "intent": "planning",
                 "requirements_extracted": requirements_extracted,
-                "requirements_data": updated_requirements
+                "requirements_data": updated_requirements,
+                "completion_status": completion_status,  
+                "interests": interests                    
             }
             return final_result
             
@@ -374,7 +414,9 @@ class IntentRequirementsService:
                 "response": fallback,
                 "intent": "planning", 
                 "requirements_extracted": False,
-                "requirements_data": session["requirements"]
+                "requirements_data": session["requirements"],
+                "completion_status": "incomplete",  
+                "interests": []                     
             }
 
     async def _handle_other_intent(self, user_input: str, session_id: str) -> Dict:
@@ -401,7 +443,9 @@ class IntentRequirementsService:
             "response": response,
             "intent": "other",
             "requirements_extracted": False,
-            "requirements_data": session["requirements"]
+            "requirements_data": session["requirements"],
+            "completion_status": "incomplete",  
+            "interests": []                    
         }
         
     def _check_completion(self, requirements: Dict) -> bool:
