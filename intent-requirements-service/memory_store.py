@@ -9,13 +9,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
-USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
+AWS_REGION = os.getenv("AWS_REGION")
+USE_S3 = os.getenv("USE_S3")
 
 # S3 settings
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-S3_BASE_PREFIX = os.getenv("S3_BASE_PREFIX", "").strip().strip("/")
-S3_MEMORY_PREFIX = os.getenv("S3_MEMORY_PREFIX", "requirements/").strip()
+S3_BASE_PREFIX = os.getenv("S3_BASE_PREFIX")
+S3_MEMORY_PREFIX = os.getenv("S3_MEMORY_PREFIX")
 S3_ENDPOINT = os.getenv("AWS_S3_ENDPOINT")  # LocalStack optional
 S3_ENDPOINT = S3_ENDPOINT if S3_ENDPOINT and S3_ENDPOINT.strip() else None
 
@@ -88,7 +88,7 @@ def get_memory(session_id: str, target_template: dict = None) -> Dict[str, Any]:
 def put_memory(session_id: str, conversation_history: list, requirements: dict, phase: str):
     item = {
         "session_id": session_id,
-        "conversation_history": conversation_history[-int(os.getenv("MAX_HISTORY", "10")):],  # trim
+        "conversation_history": conversation_history[-int(os.getenv("MAX_HISTORY")):],  # trim
         "requirements": requirements,
         "phase": phase,
         "last_updated": _now_iso()

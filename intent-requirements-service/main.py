@@ -35,8 +35,6 @@ init(autoreset=True)
 
 from configs.config import config as app_config
 from configs.config import config
-os.environ["CREWAI_TRACING_ENABLED"] = "false"
-os.environ["CREWAI_TELEMETRY_DISABLED"] = "1"  # extra belt-and-braces for local runs
 
 # NEW: centralised persistence (DynamoDB or in-memory depending on USE_DDB)
 from memory_store import get_memory, put_memory

@@ -11,11 +11,11 @@ print("DDB_MEMORY_TABLE =", os.getenv("DDB_MEMORY_TABLE"))
 
 from typing import Any, Dict, Optional
 
-USE_DDB = os.getenv("USE_DDB", "false").lower() == "true"
-DDB_SESSIONS_TABLE = os.getenv("DDB_SESSIONS_TABLE", "travel_sessions")
-DDB_MEMORY_TABLE = os.getenv("DDB_MEMORY_TABLE", "travel_memory")  # not used here but kept for symmetry
+USE_DDB = os.getenv("USE_DDB")
+DDB_SESSIONS_TABLE = os.getenv("DDB_SESSIONS_TABLE")
+DDB_MEMORY_TABLE = os.getenv("DDB_MEMORY_TABLE")  # not used here but kept for symmetry
 AWS_DDB_ENDPOINT = os.getenv("AWS_DDB_ENDPOINT")
-AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
+AWS_REGION = os.getenv("AWS_REGION")
 
 print(AWS_REGION)
 

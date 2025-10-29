@@ -22,8 +22,8 @@ class SecurityPipeline:
 
     def __init__(self):
         # Feature flags / runtime knobs
-        self.enabled: bool = os.getenv("GUARDRAILS_ENABLED", "true").lower() == "true"
-        self.timeout_s: int = int(os.getenv("GUARDRAILS_TIMEOUT", "10"))
+        self.enabled: bool = os.getenv("GUARDRAILS_ENABLED")
+        self.timeout_s: int = int(os.getenv("GUARDRAILS_TIMEOUT"))
         
         # Travel-specific keywords for context validation
         self.travel_keywords = [

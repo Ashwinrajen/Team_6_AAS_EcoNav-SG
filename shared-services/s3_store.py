@@ -6,14 +6,14 @@ from typing import Any, Dict, Optional
 import boto3
 from botocore.exceptions import ClientError
 
-AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
+AWS_REGION = os.getenv("AWS_REGION")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 # Optional “environment namespace”, e.g. "dev", "prod"
-S3_BASE_PREFIX = os.getenv("S3_BASE_PREFIX", "").strip().strip("/")
+S3_BASE_PREFIX = os.getenv("S3_BASE_PREFIX")
 
 # Service-specific prefixes (can be plain names like "sessions/" or already nested)
-S3_SESSIONS_PREFIX = os.getenv("S3_SESSIONS_PREFIX", "sessions/").strip()
+S3_SESSIONS_PREFIX = os.getenv("S3_SESSIONS_PREFIX")
 
 # FIXED: Handle empty string for S3_ENDPOINT (AWS expects None, not "")
 S3_ENDPOINT = os.getenv("AWS_S3_ENDPOINT")  # for LocalStack (optional)

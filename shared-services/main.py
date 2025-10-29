@@ -18,7 +18,7 @@ from security_pipeline import SecurityPipeline
 from transparency import TransparencyEngine
 
 # -------- Select backend at runtime --------
-USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
+USE_S3 = os.getenv("USE_S3")
 if USE_S3:
     from s3_store import (
         get_session as store_get,
