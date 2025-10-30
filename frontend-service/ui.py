@@ -267,8 +267,9 @@ def display_help_section():
         - Redirects off-topic conversations back to travel
         
         #### 📝 Requirements Gathering
-        - **Required:** destination, dates, duration, budget (SGD), pace
+        - **Required:** destination, dates, duration, **travelers (adults/children)**, budget (SGD), pace
         - **Optional:** interests, dietary needs, eco preferences, group type
+        - For optional fields: saying "no preference" or "none" counts as answered
         - Adapts questions based on your responses
         - Handles changes and corrections naturally
         
@@ -289,15 +290,17 @@ def display_help_section():
 ```
         "Hello!"
         "I want to visit Singapore from Dec 20-25"
+        "2 adults and 1 child"
         "Budget is 2000 SGD"
         "Relaxed pace, interested in gardens"
+        "No dietary restrictions"
 ```
         
         **All-in-one:**
 ```
         "I want to visit Singapore from December 20-25, 2025 
-        with a budget of 2000 SGD, relaxed pace, 
-        interested in gardens and museums"
+        with my wife and 2 kids, budget of 2000 SGD, relaxed pace, 
+        interested in gardens and museums, no dietary preferences"
 ```
         
         #### 🔄 After Completion

@@ -6,25 +6,84 @@ binary_intent_classification:
     
     TASK: Classify into exactly one of these three categories:
     - "greeting": User is saying hello, hi, hey, good morning, how are you, etc or starting conversation, being polite, or asking general "how are you" type questions
-    - "planning": User wants to plan, travel, visit, go somewhere, book, change travel plans, or anything travel-related
+    - "planning": User wants to plan, travel, visit, go somewhere, book, change travel plans, or anything travel-related INCLUDING answering travel-related questions (dates, budget, preferences, interests, dietary needs, etc.)
     - "other": Everything else which doesnt relate to travel planning - It mostly relates to random questions, off-topic conversations, unrelated topics
 
     REASONING APPROACH:
     1. Look for greeting words (hello, hi, hey, good morning, how are you, etc.)
-    2. Look for travel/planning intent (want to go, plan trip, visit, travel to, book, change plans, etc.)
-    3. If both greeting or planning is present, prioritize planning over greeting
-    4. If neither greeting nor travel-related, classify as "other"
+    2. Look for travel/planning intent keywords (want to go, plan trip, visit, travel to, book, change plans, etc.)
+    3. Look for travel-related INFORMATION being provided (dates, budgets, preferences, food choices, interests, activities, locations, etc.)
+    4. If providing travel preferences, details, or answering travel questions → classify as "planning"
+    5. If both greeting and planning are present, prioritize planning over greeting
+    6. If neither greeting nor travel-related, classify as "other"
     
     EXAMPLES:
-    - "Are you a chatbot?" → other
-    - "What's the carbon footprint?" → other  
-    - "You are dump" → other
+    
+    GREETING:
+    - "Hello!" → greeting
+    - "Hi there" → greeting
+    - "Good morning" → greeting
     - "Thank you" → greeting
-    - "Nah" → other
+    - "Thanks!" → greeting
+    
+    PLANNING (Direct requests):
+    - "I want to visit Singapore" → planning
     - "Change to India" → planning
-    - "6 days" → planning
-    - "solo or group travel" → planning 
-    - "900 dollars" → planning
+    - "Book a trip to Paris" → planning
+    - "Plan a vacation" → planning
+    
+    PLANNING (Providing travel details - MOST IMPORTANT):
+    - "6 days" → planning (duration)
+    - "900 dollars" → planning (budget)
+    - "$2000 SGD" → planning (budget)
+    - "2 adults and 1 child" → planning (travelers)
+    - "December 20 to 25" → planning (dates)
+    - "solo" → planning (group type)
+    - "couple" → planning (group type)
+    - "family" → planning (group type)
+    - "relaxed pace" → planning (pace preference)
+    - "fast paced" → planning (pace preference)
+    
+    PLANNING (Preferences and interests - CRITICAL FOR YOUR CASE):
+    - "i prefer non veg" → planning (dietary preference)
+    - "vegetarian food" → planning (dietary preference)
+    - "no dietary restrictions" → planning (dietary preference)
+    - "interested in museums" → planning (interests)
+    - "i like gardens" → planning (interests)
+    - "newton food center" → planning (location interest)
+    - "no eco-friendly options" → planning (eco preference)
+    - "high sustainability" → planning (eco preference)
+    - "no preference" → planning (answering a question)
+    - "doesn't matter" → planning (answering a question)
+    - "Clarke Quay area" → planning (location preference)
+    - "near the beach" → planning (location preference)
+    - "wheelchair accessible" → planning (accessibility need)
+    
+    PLANNING (Changes and modifications):
+    - "Actually, change that to 5 days" → planning
+    - "No, I meant Paris" → planning
+    - "Wrong, it's $3000" → planning
+    
+    PLANNING (Negative but still planning-related):
+    - "I don't know yet" → planning (responding to travel question)
+    - "Not sure about dates" → planning (travel-related uncertainty)
+    - "Haven't decided on budget" → planning (travel-related)
+    
+    OTHER (Truly off-topic):
+    - "Are you a chatbot?" → other (meta question)
+    - "What's the weather like?" → other (unless asking about destination weather)
+    - "You are dumb" → other (insult)
+    - "Tell me a joke" → other (unrelated request)
+    - "What is AI?" → other (unrelated question)
+    - "Help me with homework" → other (unrelated)
+    - "What is Python?" → other (programming, not travel)
+    
+    AMBIGUOUS CASES (classify as planning if could be travel-related):
+    - "Nah" → planning (if likely responding to travel question, otherwise other)
+    - "Yes" → planning (if responding to travel question, otherwise other)
+    - "No" → planning (if responding to travel question, otherwise other)
+    
+    KEY PRINCIPLE: If the message provides ANY travel-related information, preferences, or details (even negative like "no preference"), classify as "planning". Only classify as "other" if completely unrelated to travel.
     
     RESPONSE FORMAT: Return only one word - either "greeting", "planning", or "other"
     TOKEN LIMIT: Maximum {max_tokens} tokens total.
@@ -34,6 +93,30 @@ binary_intent_classification:
 comprehensive_requirements_collection:
   description: |
     CONTEXT: You are collecting travel requirements through intelligent conversation.
+
+    CRITICAL INSTRUCTION - READ CURRENT_REQUIREMENTS CAREFULLY:
+    BEFORE asking for ANY information, you MUST:
+    1. Carefully examine CURRENT_REQUIREMENTS to see what's ALREADY collected
+    2. NEVER ask for information that's already present (not null, not empty)
+    3. Only ask for fields that are actually null, empty, or missing
+    4. If ALL required fields are filled, move to optional fields ONLY
+    5. If ALL fields (required + optional) are filled, DO NOT ask for anything more
+    
+    EXAMPLE OF CORRECT BEHAVIOR:
+    - If current_requirements shows: {{"budget_total_sgd": 2000, ...}}
+    - Then budget is ALREADY collected → DO NOT ask for budget again
+    - Only ask for fields that are null or missing
+    
+    USER MESSAGE: "{user_input}"
+    CONVERSATION HISTORY: {conversation_history}
+    
+    EXAMINE THIS CAREFULLY - WHAT'S ALREADY COLLECTED:
+    CURRENT REQUIREMENTS: {current_requirements}
+    
+    COLLECTION PHASE: {phase}
+
+    TARGET JSON STRUCTURE (All fields must be considered):
+    {target_json}
 
     CONTEXT-AWARE BEHAVIOR:
 
@@ -53,14 +136,6 @@ comprehensive_requirements_collection:
     - Continue with remaining missing fields
 
     ALWAYS preserve existing collected data unless user explicitly requests changes.
-    
-    USER MESSAGE: "{user_input}"
-    CONVERSATION HISTORY: {conversation_history}
-    CURRENT REQUIREMENTS: {current_requirements}
-    COLLECTION PHASE: {phase}
-    
-    TARGET JSON STRUCTURE (All fields must be considered):
-    {target_json}
 
     DATA PRESERVATION RULES:
     - NEVER lose or reset existing collected data unless explicitly told to change it
@@ -76,17 +151,41 @@ comprehensive_requirements_collection:
     - trip_dates.start_date: YYYY-MM-DD format (e.g., "2025-12-20")
     - trip_dates.end_date: YYYY-MM-DD format (e.g., "2025-12-25")  
     - duration_days: Integer number of days (e.g., 5, 7, 10)
+    - travelers.adults: Integer number of adults (e.g., 1, 2, 4) - REQUIRED
+    - travelers.children: Integer number of children (e.g., 0, 1, 2) - can be 0 or null if no children
     - budget_total_sgd: Integer in Singapore Dollars (e.g., 600, 1500, 3000)
     - pace: One of "relaxed", "moderate", or "fast"
     
-    OPTIONAL FIELDS (collect when possible):
-    - optional.eco_preferences: "high", "medium", "low", or null
-    - optional.dietary_preferences: Specific diet (e.g., "vegan", "vegetarian", "halal") or null
-    - optional.interests: Array of interests (e.g., ["gardens", "museums", "beaches"])
-    - optional.uninterests: Array of things to avoid (e.g., ["zoo", "crowds", "shopping"])
-    - optional.accessibility_needs: Specific needs (e.g., "wheelchair_friendly", "visual_impaired") or null
-    - optional.accommodation_location.neighborhood: Area name (e.g., "Clarke Quay", "Marina Bay") or null
+    OPTIONAL FIELDS (collect when possible, accept "no_preference" as valid):
+    - optional.eco_preferences: "high", "medium", "low", "no_preference", or null
+    - optional.dietary_preferences: Specific diet (e.g., "vegan", "vegetarian", "halal", "no_preference") or null
+    - optional.interests: Array of interests (e.g., ["gardens", "museums"]) or empty array []
+    - optional.uninterests: Array of things to avoid or empty array []
+    - optional.accessibility_needs: Specific needs (e.g., "wheelchair_friendly") or "no_preference" or null
+    - optional.accommodation_location.neighborhood: Area name or "no_preference" or null
     - optional.group_type: One of "solo", "couple", "family", "friends"
+
+    HANDLING "NO PREFERENCE" CASES:
+    - When user explicitly says "no preference", "doesn't matter", "no", "none", etc. for optional fields
+    - Set the value to "no_preference" (not null) to indicate user explicitly stated no preference
+    - This counts as a filled field (user has provided an answer)
+    - Examples:
+      * "Any eco preference?" → "No" → set eco_preferences: "no_preference"
+      * "Dietary needs?" → "None" → set dietary_preferences: "no_preference"
+      * "Accessibility needs?" → "Not applicable" → set accessibility_needs: "no_preference"
+      * "Which neighborhood?" → "Doesn't matter" → set accommodation_location.neighborhood: "no_preference"
+
+    TRAVELERS FIELD EXTRACTION:
+    - Listen for: "2 adults", "family of 4", "me and my wife" (2 adults), "solo" (1 adult), "couple" (2 adults)
+    - Listen for: "with 2 kids", "3 children", "no kids" (children: 0)
+    - If children not mentioned, ask explicitly or set to 0
+    - Always require adults count (minimum 1)
+    - Examples:
+      * "Solo trip" → adults: 1, children: 0
+      * "Couple" → adults: 2, children: 0
+      * "Family of 4 with 2 kids" → adults: 2, children: 2
+      * "Me, my wife, and our 3 children" → adults: 2, children: 3
+      * "Group of 6 friends" → adults: 6, children: 0
     
     ADVANCED REASONING TASKS:
     
@@ -132,8 +231,10 @@ comprehensive_requirements_collection:
        - Reference what they've already told you to show you're listening
     
     5. COMPLETION LOGIC:
-       - Required fields: destination_city, trip_dates.start_date, trip_dates.end_date, duration_days, budget_total_sgd, pace
+       - Required fields: destination_city, trip_dates.start_date, trip_dates.end_date, duration_days, travelers.adults, budget_total_sgd, pace
+       - Optional fields: All 6 optional fields (can be "no_preference" or meaningful values)
        - Mark complete when ALL required fields have valid values
+       - travelers.children can be 0 or null, but travelers.adults must be >= 1
        - Be intelligent about validation:
          * Dates should be logical and in the future
          * End date should be after start date
@@ -142,15 +243,27 @@ comprehensive_requirements_collection:
          * Destination should be a real place
     
     6. RESPONSE FORMATTING:
+      - BEFORE writing your response, LIST what's missing by checking CURRENT_REQUIREMENTS
+      - DO NOT ask for information that's already in CURRENT_REQUIREMENTS
+      - If you see a field with a value (not null), it's ALREADY COLLECTED
+      - Only ask about the NEXT MISSING field
       - Keep responses SHORT (maximum 2-3 sentences)
       - Always acknowledge what the user said first before asking new questions
       - Be warm but concise, encouraging, and professional
       - Show enthusiasm for their trip plans
       - Reference sustainable travel when appropriate
+
+    CRITICAL DOUBLE-CHECK BEFORE RESPONDING:
+    Step 1: What did the user just provide? → Extract and update JSON
+    Step 2: Look at the UPDATED current_requirements → What's null or missing?
+    Step 3: Required fields missing? → Ask for the most important one
+    Step 4: All required complete? → Move to optional fields
+    Step 5: All optional complete too? → Acknowledge completion, don't ask for anything
     
     RESPONSE FORMAT:
     EXTRACTED_JSON: {{your updated json with all extracted information}}
-    RESPONSE: Your conversational response with next question or completion message
+    RESPONSE: Your conversational response with next question OR completion acknowledgment
+    PHASE: initial/collecting/optional/complete
     TOKEN LIMIT: Keep entire response under {max_tokens} tokens.
     
   expected_output: JSON extraction, conversational response, and phase indicator

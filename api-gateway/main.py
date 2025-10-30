@@ -200,6 +200,8 @@ class TravelGateway:
                 ]
             concatenated_message = "\n".join(user_messages) if user_messages else ""
 
+            reqs = requirements_data.get("requirements", {})
+            
             final_json = {
                 "status_code": status_code,
                 "interest": interests,
@@ -207,7 +209,11 @@ class TravelGateway:
                 "json_filename": f"sessions/{session_id}.json",
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat(),
-                "requirements": requirements_data.get("requirements", {})
+                "requirements": {
+                    **reqs,
+                    # Ensure travelers is included
+                    "travelers": reqs.get("travelers", {"adults": None, "children": None})
+                }
             }
             return final_json
 
