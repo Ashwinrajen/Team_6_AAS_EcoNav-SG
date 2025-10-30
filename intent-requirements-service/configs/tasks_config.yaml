@@ -7,7 +7,7 @@ binary_intent_classification:
     TASK: Classify into exactly one of these three categories:
     - "greeting": User is saying hello, hi, hey, good morning, how are you, etc or starting conversation, being polite, or asking general "how are you" type questions
     - "planning": User wants to plan, travel, visit, go somewhere, book, change travel plans, or anything travel-related
-    - "other": Everything else - random questions, off-topic conversations, unrelated topics
+    - "other": Everything else which doesnt relate to travel planning - It mostly relates to random questions, off-topic conversations, unrelated topics
 
     REASONING APPROACH:
     1. Look for greeting words (hello, hi, hey, good morning, how are you, etc.)
@@ -23,6 +23,7 @@ binary_intent_classification:
     - "Nah" → other
     - "Change to India" → planning
     - "6 days" → planning
+    - "solo or group travel" → planning 
     - "900 dollars" → planning
     
     RESPONSE FORMAT: Return only one word - either "greeting", "planning", or "other"
@@ -43,7 +44,7 @@ comprehensive_requirements_collection:
 
     IF ALL REQUIRED FIELDS are complete:
     - Move to optional fields collection
-    - Ask about eco-preferences, dietary needs, interests, etc.
+    - Ask about eco-preferences, dietary needs, interests, uninterests etc.
     - If optional fields also complete, preserve data and wait for changes
 
     IF USER WANTS TO CHANGE something:
