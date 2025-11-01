@@ -7,6 +7,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 AWS_REGION = os.getenv("AWS_REGION")
+USE_S3 = os.environ.get("USE_S3", "false").lower() == "true" 
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 # Optional “environment namespace”, e.g. "dev", "prod"
@@ -50,6 +51,8 @@ def _now_iso() -> str:
 
 
 def get_session(session_id: str) -> Optional[Dict[str, Any]]:
+    if not USE_S3: 
+        return None  
     key = _session_key(session_id)
     try:
         obj = _s3.get_object(Bucket=S3_BUCKET_NAME, Key=key)
@@ -66,6 +69,9 @@ def get_session(session_id: str) -> Optional[Dict[str, Any]]:
 
 
 def put_session(session: Dict[str, Any]) -> None:
+    if not USE_S3:  
+        print(f"📝 Local storage mode - skipping S3 for session {session.get('session_id')}")  
+        return  
     if not S3_BUCKET_NAME:
         raise RuntimeError("S3_BUCKET_NAME is not set")
     key = _session_key(session["session_id"])
@@ -80,6 +86,8 @@ def put_session(session: Dict[str, Any]) -> None:
 
 
 def update_session(session_id: str, updates: Dict[str, Any]) -> None:
+    if not USE_S3:  
+        return  
     existing = get_session(session_id) or {"session_id": session_id, "created_at": _now_iso()}
     existing.update(updates or {})
     existing.setdefault("last_active", _now_iso())
@@ -87,6 +95,8 @@ def update_session(session_id: str, updates: Dict[str, Any]) -> None:
 
 
 def delete_session(session_id: str) -> None:
+    if not USE_S3: 
+        return  
     key = _session_key(session_id)
     try:
         _s3.delete_object(Bucket=S3_BUCKET_NAME, Key=key)

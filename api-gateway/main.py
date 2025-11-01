@@ -234,9 +234,22 @@ class TravelGateway:
 
         # Step 1: Session initialization
         if not session_id:
-            session_data = create_session({"user_id": None})
-            _ensure_ok(session_data, "session create")
-            session_id = session_data.get("session_id", "unknown")
+            try:
+                session_data = create_session({"user_id": None})
+                _ensure_ok(session_data, "session create")
+                session_id = session_data.get("session_id", "unknown")
+            except Exception as e:
+                print(f"❌ Session creation failed: {e}")
+                return {
+                    "success": False,
+                    "response": "I'm having trouble starting our conversation. Please try again.",
+                    "session_id": None,
+                    "intent": "error",
+                    "error": str(e),
+                    "conversation_state": "error",
+                    "trust_score": 0.0,
+                    "collection_complete": False
+                }
 
         print(f"Processing input: {user_input[:60]}... (session: {session_id})")
 

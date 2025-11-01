@@ -285,6 +285,21 @@ class IntentRequirementsService:
             return await self._handle_greeting(user_input, session_id)
         else:  # planning
             return await self._handle_planning(user_input, session_id)
+        
+    def _deep_merge(self, base: Dict, update: Dict) -> Dict:
+        """Deep merge two dictionaries, with update taking precedence for non-null values"""
+        result = base.copy()
+        
+        for key, value in update.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # Recursively merge nested dicts
+                result[key] = self._deep_merge(result[key], value)
+            elif value is not None:
+                # Update with non-null values
+                result[key] = value
+            # Skip if value is None (don't overwrite existing with null)
+        
+        return result
     
     async def _handle_greeting(self, user_input: str, session_id: str) -> Dict:
         """Handle greeting and transition to planning"""
@@ -522,59 +537,82 @@ class IntentRequirementsService:
             "interests": []                    
         }
         
-    def _check_completion(self, requirements: Dict) -> Dict[str, Any]:
-        """Check both mandatory and optional completion status"""
-        reqs = requirements.get("requirements", {})
-        trip_dates = reqs.get("trip_dates", {})
-        travelers = reqs.get("travelers", {})  # NEW
+    def _check_completion(self, requirements_data: Dict) -> Dict:
+        """
+        Check if requirements collection is complete.
+        Returns status: incomplete, mandatory_complete, or all_complete
+        """
+        reqs = requirements_data.get("requirements", {})
+        
+        # ========== CHECK MANDATORY FIELDS ==========
+        mandatory_fields = {
+            "destination_city": reqs.get("destination_city"),
+            "start_date": reqs.get("trip_dates", {}).get("start_date"),
+            "end_date": reqs.get("trip_dates", {}).get("end_date"),
+            "duration_days": reqs.get("duration_days"),
+            "adults": reqs.get("travelers", {}).get("adults"),
+            "budget_total_sgd": reqs.get("budget_total_sgd"),
+            "pace": reqs.get("pace")
+        }
+        
+        # Check if mandatory field is truly filled (not None, not empty string, not 0)
+        def is_filled(value):
+            if value is None:
+                return False
+            if isinstance(value, str) and value.strip() == "":
+                return False
+            if isinstance(value, (int, float)) and value == 0:
+                return False  # 0 budget or 0 adults is not valid
+            return True
+        
+        mandatory_filled = sum(1 for v in mandatory_fields.values() if is_filled(v))
+        mandatory_total = len(mandatory_fields)
+        mandatory_complete = (mandatory_filled == mandatory_total)
+        
+        # ========== CHECK OPTIONAL FIELDS ==========
         optional = reqs.get("optional", {})
         
-        # Check mandatory fields
-        mandatory_fields = [
-            reqs.get("destination_city"),
-            trip_dates.get("start_date"),
-            trip_dates.get("end_date"),
-            reqs.get("duration_days"),
-            travelers.get("adults"),  # NEW - must have at least adults count
-            reqs.get("budget_total_sgd"),
-            reqs.get("pace")
-        ]
-        # Note: travelers.children can be None/0, but adults must be provided
-        mandatory_complete = all(field is not None and field != "" for field in mandatory_fields)
+        optional_fields = {
+            "eco_preferences": optional.get("eco_preferences"),
+            "dietary_preferences": optional.get("dietary_preferences"),
+            "interests": optional.get("interests", []),
+            "accessibility_needs": optional.get("accessibility_needs"),
+            "neighborhood": optional.get("accommodation_location", {}).get("neighborhood"),
+            "group_type": optional.get("group_type")
+        }
         
-        # Check optional fields - UPDATED to handle "no_preference" and "none" as valid
-        def is_filled(value):
-            """Check if optional field is meaningfully filled"""
-            if value is None or value == "":
+        # Check optional fields - special handling for lists and specific values
+        def is_optional_filled(key, value):
+            if key == "interests":
+                return isinstance(value, list) and len(value) > 0
+            if value is None:
                 return False
-            # Accept explicit "no preference" indicators as filled
-            if isinstance(value, str) and value.lower() in ["no_preference", "none", "no", "n/a"]:
-                return True
-            # For lists, check if non-empty
-            if isinstance(value, list):
-                return len(value) > 0
-            # For numbers, accept 0 as valid
-            if isinstance(value, (int, float)):
-                return True
-            # Any other non-empty value is filled
-            return bool(value)
+            if isinstance(value, str):
+                # "no_preference" or "none" counts as filled
+                return value.strip() != ""
+            return True
         
-        optional_filled = sum([
-            1 if is_filled(optional.get("eco_preferences")) else 0,
-            1 if is_filled(optional.get("dietary_preferences")) else 0,
-            1 if is_filled(optional.get("interests")) else 0,
-            1 if is_filled(optional.get("accessibility_needs")) else 0,
-            1 if is_filled(optional.get("accommodation_location", {}).get("neighborhood")) else 0,
-            1 if is_filled(optional.get("group_type")) else 0
-        ])
+        optional_filled = sum(1 for k, v in optional_fields.items() if is_optional_filled(k, v))
+        optional_total = len(optional_fields)
+        all_complete = mandatory_complete and (optional_filled == optional_total)
         
-        all_optional_complete = optional_filled == 6
+        # ========== DETERMINE STATUS ==========
+        if all_complete:
+            status = "all_complete"
+        elif mandatory_complete:
+            status = "mandatory_complete"
+        else:
+            status = "incomplete"
         
         return {
+            "status": status,
             "mandatory_complete": mandatory_complete,
-            "all_complete": mandatory_complete and all_optional_complete,
+            "mandatory_filled": mandatory_filled,
+            "mandatory_total": mandatory_total,
             "optional_filled": optional_filled,
-            "optional_total": 6
+            "optional_total": optional_total,
+            "all_complete": all_complete,
+            "optional_progress": f"{optional_filled}/{optional_total}"
         }
     
 # -------------------------------------------------

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 AWS_REGION = os.getenv("AWS_REGION")
-USE_S3 = os.getenv("USE_S3")
+USE_S3 = os.environ.get("USE_S3", "false").lower() == "true"
 
 # S3 settings
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
@@ -22,9 +22,7 @@ S3_ENDPOINT = S3_ENDPOINT if S3_ENDPOINT and S3_ENDPOINT.strip() else None
 # Fallback in-memory (for local/dev when USE_S3=false)
 _memory_store: Dict[str, Dict[str, Any]] = {}
 
-_s3 = None
-if USE_S3:
-    _s3 = boto3.client("s3", region_name=AWS_REGION, endpoint_url=S3_ENDPOINT)
+_s3 = boto3.client("s3", region_name=AWS_REGION, endpoint_url=S3_ENDPOINT)
 
 def _join_prefix(*parts: str) -> str:
     pieces = [p.strip().strip("/") for p in parts if p and p.strip().strip("/")]
@@ -86,21 +84,28 @@ def get_memory(session_id: str, target_template: dict = None) -> Dict[str, Any]:
         }
 
 def put_memory(session_id: str, conversation_history: list, requirements: dict, phase: str):
+    if not USE_S3:
+        print(f"📝 Local storage mode - skipping S3 for session {session_id}")
+        _memory_store[session_id] = {  # Store in memory instead
+            "session_id": session_id,
+            "conversation_history": conversation_history[-int(os.getenv("MAX_HISTORY", "10")):],
+            "requirements": requirements,
+            "phase": phase,
+            "last_updated": _now_iso()
+        }
+        return
+    
     item = {
         "session_id": session_id,
-        "conversation_history": conversation_history[-int(os.getenv("MAX_HISTORY")):],  # trim
+        "conversation_history": conversation_history[-int(os.getenv("MAX_HISTORY", "10")):],
         "requirements": requirements,
         "phase": phase,
         "last_updated": _now_iso()
     }
-
-    if not USE_S3:
-        _memory_store[session_id] = item
-        return
-
+    
     if not S3_BUCKET_NAME:
         raise RuntimeError("S3_BUCKET_NAME is not set")
-
+    
     key = _memory_key(session_id)
     body = json.dumps(item, ensure_ascii=False).encode("utf-8")
     _s3.put_object(

@@ -244,11 +244,30 @@ class SecurityPipeline:
         """
         text_lower = text.lower()
         
-        # Check for prompt injection patterns
+        # Check for prompt injection patterns - MORE COMPREHENSIVE
         injection_patterns = [
-            "ignore previous", "system override", "forget instructions",
-            "developer mode", "admin access", "bypass safety", "jailbreak"
+            "ignore previous", 
+            "ignore all previous",
+            "forget instructions",
+            "forget previous",
+            "forget all previous",
+            "disregard previous",
+            "disregard all previous",
+            "system override", 
+            "system prompt",
+            "developer mode", 
+            "admin access",
+            "admin mode",
+            "root access",
+            "bypass safety",
+            "bypass security", 
+            "jailbreak",
+            "enable admin",
+            "enable developer",
+            "override instructions",
+            "new instructions"
         ]
+        
         threats = sum(1 for pattern in injection_patterns if pattern in text_lower)
         
         # Check for extremely off-topic content
@@ -256,11 +275,11 @@ class SecurityPipeline:
             "politics", "election", "medical advice", "legal advice",
             "financial advice", "write my homework", "write my essay"
         ]
-        off_topic_threats = sum(1 for pattern in very_off_topic if pattern in text_lower)
         
+        off_topic_threats = sum(1 for pattern in very_off_topic if pattern in text_lower)
         total_threats = threats + off_topic_threats
         is_safe = total_threats == 0
-
+        
         return {
             "is_safe": is_safe,
             "risk_score": min(1.0, total_threats * 0.4),
