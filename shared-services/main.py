@@ -15,7 +15,6 @@ from pydantic import BaseModel
 from fastapi.testclient import TestClient
 
 from security_pipeline import SecurityPipeline
-from transparency import TransparencyEngine
 
 # -------- Select backend at runtime --------
 USE_S3 = os.getenv("USE_S3")
@@ -36,10 +35,6 @@ class SecurityInputRequest(BaseModel):
 class SecurityOutputRequest(BaseModel):
     response: str
     context: Optional[Dict[str, Any]] = {}
-
-class TrustScoreRequest(BaseModel):
-    session_data: Dict[str, Any]
-    user_context: Dict[str, Any]
 
 class SessionCreateRequest(BaseModel):
     user_id: Optional[str] = None
@@ -84,9 +79,8 @@ class SessionManager:
 # ---------------------------
 # FastAPI app & services
 # ---------------------------
-app = FastAPI(title="Shared Services - Security & Transparency", version="1.0.0")
+app = FastAPI(title="Shared Services - Security", version="1.0.0")
 security_pipeline = SecurityPipeline()
-transparency_engine = TransparencyEngine()
 
 def handle_errors(func):
     @wraps(func)
@@ -114,33 +108,6 @@ async def validate_input(request: SecurityInputRequest):
 @handle_errors
 async def validate_output(request: SecurityOutputRequest):
     return await security_pipeline.validate_output(request.response, request.context)
-
-# ----- Transparency -----
-@app.post("/transparency/trust-score")
-@handle_errors
-async def calculate_trust_score(request: TrustScoreRequest):
-    return transparency_engine.calculate_trust_score(request.session_data, request.user_context)
-
-@app.post("/transparency/explain-decision")
-@handle_errors
-async def explain_decision(request: Dict[str, Any]):
-    import uuid
-    decision_id = request.get("decision_id", str(uuid.uuid4())[:8])
-    reasoning_data = request.get("reasoning_data", {})
-    explanation = transparency_engine.explain_decision(decision_id, reasoning_data)
-    return {
-        "decision_id": decision_id,
-        "explanation": explanation,
-        "timestamp": datetime.now().isoformat(),
-    }
-
-@app.get("/transparency/report/{session_id}")
-@handle_errors
-async def get_transparency_report(session_id: str):
-    cleaned = transparency_engine.clear_old_explanations()
-    if cleaned > 0:
-        print(f"Cleaned up {cleaned} old explanations")
-    return transparency_engine.get_transparency_report(session_id)
 
 # ----- Sessions -----
 @app.post("/session/create")
@@ -203,8 +170,8 @@ async def root():
         "message": "Shared Services - Security & Transparency",
         "version": "1.0.0",
         "backend": "S3" if USE_S3 else "DDB",
-        "services": {"security": "NeMo Guardrails", "transparency": "Trust & explanations"},
-        "endpoints": ["/health", "/security/*", "/session/*", "/transparency/*"],
+        "services": {"security": "NeMo Guardrails"},
+        "endpoints": ["/health", "/security/*", "/session/*"],
     }
 
 # --- Lambda adapter: support both APIGW proxy via Mangum AND direct-invoke shape ---
