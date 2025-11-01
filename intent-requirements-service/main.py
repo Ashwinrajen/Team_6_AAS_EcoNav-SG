@@ -159,7 +159,7 @@ class IntentRequirementsService:
         return ChatOpenAI(
             model=app_config.OPENAI_MODEL_NAME,   # now gpt-4o-mini
             temperature=0.2,
-            max_tokens=min(app_config.MAX_TOKENS, 300),
+            max_tokens=min(app_config.MAX_TOKENS, 600),
             max_retries=1,                        # small retry to avoid transient blips
             http_client=http,
         )
@@ -374,7 +374,7 @@ class IntentRequirementsService:
             result = str(await self._run_crew(crew, timeout=35))
             
             # Parse result using advanced regex
-            json_match = re.search(r'EXTRACTED_JSON:\s*(\{.*?\})\s*(?=RESPONSE:|$)', result, re.DOTALL)
+            json_match = re.search(r'EXTRACTED_JSON:\s*(\{.*?\})\s*RESPONSE:', result, re.DOTALL | re.MULTILINE)
             response_match = re.search(r'RESPONSE:\s*(.*?)(?=\nPHASE:|$)', result, re.DOTALL)
             phase_match = re.search(r'PHASE:\s*(\w+)', result)
             
@@ -387,8 +387,17 @@ class IntentRequirementsService:
             if json_match:
                 try:
                     extracted_json = json.loads(json_match.group(1))
-                    _print_extracted_json(extracted_json, session_id)
-                    updated_requirements = extracted_json
+                    
+                    # Validate structure
+                    if "requirements" not in extracted_json:
+                        print("⚠️ Invalid JSON structure - missing 'requirements' key")
+                        extracted_json = {"requirements": extracted_json}
+                    
+                    # Merge with existing to avoid data loss
+                    updated_requirements = self._deep_merge(
+                        session["requirements"], 
+                        extracted_json
+                    )
                 except json.JSONDecodeError as e:
                     print(f"{Fore.YELLOW}⚠️ JSON parsing failed, using existing requirements: {e}{Style.RESET_ALL}")
 
