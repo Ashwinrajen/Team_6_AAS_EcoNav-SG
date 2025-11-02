@@ -1,4 +1,4 @@
-# common/service_client.py - IMPROVED ERROR HANDLING + ROBUST APIGW EVENT + OPTIONAL DIRECT INVOKES
+# common/service_client.py 
 
 import os
 import json
@@ -7,7 +7,6 @@ import boto3
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# Resilient session to avoid transient slowdowns
 _session = requests.Session()
 _session.mount("http://", HTTPAdapter(max_retries=Retry(
     total=2, backoff_factor=0.2, status_forcelist=[429, 500, 502, 503, 504]
@@ -59,10 +58,9 @@ def _invoke_lambda(function_name: str, method: str, path: str, body: dict, *, di
         event = {
             "path": path,
             "httpMethod": method,
-            "body": body,  # leave as dict; callee will json-encode if needed
+            "body": body,  
         }
     else:
-        # Full-ish APIGW v2 event to keep Mangum happy & future-proof
         event = {
             "version": "2.0",
             "routeKey": f"{method} {path}",
@@ -81,7 +79,7 @@ def _invoke_lambda(function_name: str, method: str, path: str, body: dict, *, di
                     "method": method,
                     "path": path,
                     "protocol": "HTTP/1.1",
-                    "sourceIp": "127.0.0.1",  # ✅ REQUIRED by Mangum
+                    "sourceIp": "127.0.0.1",  
                     "userAgent": "lambda-invoke",
                 }
             },
@@ -124,9 +122,6 @@ def _invoke_lambda(function_name: str, method: str, path: str, body: dict, *, di
         payload_text = resp["Payload"].read().decode("utf-8")
         print(f"✅ Lambda {function_name} responded: {len(payload_text)} bytes")
 
-        # The callee might return either:
-        # - APIGW proxy response: {"statusCode": ..., "body": "..."}
-        # - Direct JSON body (dict)
         try:
             gw = json.loads(payload_text)
 

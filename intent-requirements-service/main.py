@@ -1,7 +1,6 @@
 # intent-requirements-service/main.py
 
 import os
-# CRITICAL: Set HOME to /tmp for Lambda (writable directory)
 import os
 os.environ['HOME'] = '/tmp'
 os.environ['TMPDIR'] = '/tmp'
@@ -36,7 +35,7 @@ init(autoreset=True)
 from configs.config import config as app_config
 from configs.config import config
 
-# NEW: centralised persistence (DynamoDB or in-memory depending on USE_DDB)
+# centralised persistence (DynamoDB or in-memory depending on USE_DDB)
 from memory_store import get_memory, put_memory
 
 # -------------------------------------------------
@@ -242,12 +241,11 @@ class IntentRequirementsService:
                 expected_output=task_config.get('expected_output', 'Intent classification')
             )
             
-            # Use kickoff() with proper error handling
             crew = Crew(
                 agents=[self.intent_agent], 
                 tasks=[task], 
                 verbose=False, 
-                memory=False,  # ← ADD THIS
+                memory=False,  
                 process_timeout=12
             )
             result = str(await self._run_crew(crew, timeout=15)).lower().strip()
@@ -317,7 +315,7 @@ class IntentRequirementsService:
                 agents=[self.requirements_agent], 
                 tasks=[task], 
                 verbose=False,
-                memory=False,  # ← ADD THIS
+                memory=False,  
                 process_timeout=18
             )
             response = str(await self._run_crew(crew, timeout=20))
@@ -359,7 +357,7 @@ class IntentRequirementsService:
             # Prepare conversation history (last ~6 turns)
             conversation_history = "\n".join([
                 f"{msg['role']}: {msg['message']}" 
-                for msg in session["conversation_history"][-6:]
+                for msg in session["conversation_history"][-10:]
             ])
             
             task_config = self.tasks_config.get('comprehensive_requirements_collection', {})
@@ -383,7 +381,7 @@ class IntentRequirementsService:
                 agents=[self.requirements_agent], 
                 tasks=[task], 
                 verbose=False,
-                memory=False,  # ← ADD THIS
+                memory=False, 
                 process_timeout=32
             )
             result = str(await self._run_crew(crew, timeout=35))

@@ -45,7 +45,7 @@ DOWNSTREAM_MODE = os.getenv("DOWNSTREAM_MODE")
 AWS_REGION = os.getenv("AWS_REGION")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_BASE_PREFIX = os.getenv("S3_BASE_PREFIX")
-S3_ENDPOINT = os.getenv("AWS_S3_ENDPOINT")  # For LocalStack
+S3_ENDPOINT = os.getenv("AWS_S3_ENDPOINT")  
 
 # Planning Agent Configuration
 PLANNING_AGENT_URL = os.getenv("PLANNING_AGENT_URL")
@@ -211,7 +211,6 @@ class TravelGateway:
                 "timestamp": datetime.now().isoformat(),
                 "requirements": {
                     **reqs,
-                    # Ensure travelers is included
                     "travelers": reqs.get("travelers", {"adults": None, "children": None})
                 }
             }
@@ -291,7 +290,7 @@ class TravelGateway:
                 else req_data.get("response", "")
             )
 
-            # Step 6: Update session + trust score
+            # Step 6: Update session
             upd = update_session(
                 session_id,
                 {
@@ -340,9 +339,9 @@ class TravelGateway:
                 "intent": intent,
                 "conversation_state": self._get_conversation_state(intent, is_mandatory_complete),
                 "trust_score": trust_score,
-                "collection_complete": is_all_complete,  # CHANGED: only true when ALL done
-                "completion_status": completion_status,  # NEW
-                "optional_progress": req_data.get("optional_progress", "0/6"),  # NEW
+                "collection_complete": is_all_complete,  
+                "completion_status": completion_status,  
+                "optional_progress": req_data.get("optional_progress", "0/6"),  
                 "final_json_s3_key": final_json_s3_key,
                 "planning_agent_status": agent_response.get("status") if agent_response else None
             }

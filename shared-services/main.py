@@ -199,7 +199,6 @@ def lambda_handler(event, context):
             try:
                 return resp.json()
             except Exception:
-                # Ensure something sensible is returned
                 return {"status_code": resp.status_code, "text": resp.text}
 
     # Default to APIGW proxy handling

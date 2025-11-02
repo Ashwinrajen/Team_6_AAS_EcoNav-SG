@@ -16,7 +16,7 @@ USE_S3 = os.environ.get("USE_S3", "false").lower() == "true"
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_BASE_PREFIX = os.getenv("S3_BASE_PREFIX")
 S3_MEMORY_PREFIX = os.getenv("S3_MEMORY_PREFIX")
-S3_ENDPOINT = os.getenv("AWS_S3_ENDPOINT")  # LocalStack optional
+S3_ENDPOINT = os.getenv("AWS_S3_ENDPOINT")  
 S3_ENDPOINT = S3_ENDPOINT if S3_ENDPOINT and S3_ENDPOINT.strip() else None
 
 # Fallback in-memory (for local/dev when USE_S3=false)

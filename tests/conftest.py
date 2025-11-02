@@ -64,9 +64,9 @@ def sample_requirements():
                 "dietary_preferences": "vegetarian",
                 "interests": ["gardens", "museums"],
                 "uninterests": [],
-                "accessibility_needs": "no_preference",  # ← CHANGED from None
+                "accessibility_needs": "no_preference",  
                 "accommodation_location": {
-                    "neighborhood": "Marina Bay"  # ← CHANGED from None
+                    "neighborhood": "Marina Bay"  
                 },
                 "group_type": "family"
             }

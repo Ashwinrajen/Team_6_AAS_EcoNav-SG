@@ -76,7 +76,6 @@ def initialize_session():
     if "final_json_info" not in st.session_state:
         st.session_state.final_json_info = None
     
-    # NEW: Add these two lines
     if "mandatory_complete" not in st.session_state:
         st.session_state.mandatory_complete = False
     
