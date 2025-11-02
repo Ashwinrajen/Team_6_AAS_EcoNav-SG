@@ -35,30 +35,30 @@ Parameters:
     Description: "S3 endpoint URL (leave empty for AWS)"
 
 Resources:
-  # S3 Bucket for state
-  StateBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketName: !Ref StateBucketName
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      LifecycleConfiguration:
-        Rules:
-          - Id: ArchiveOldState
-            Status: Enabled
-            Transitions:
-              - StorageClass: INTELLIGENT_TIERING
-                TransitionInDays: 1
-          - Id: ExpireOldState
-            Status: Enabled
-            ExpirationInDays: 30
+  # # S3 Bucket for state
+  # StateBucket:
+  #   Type: AWS::S3::Bucket
+  #   DeletionPolicy: Retain
+  #   UpdateReplacePolicy: Retain
+  #   Properties:
+  #     BucketName: !Ref StateBucketName
+  #     VersioningConfiguration:
+  #       Status: Enabled
+  #     PublicAccessBlockConfiguration:
+  #       BlockPublicAcls: true
+  #       BlockPublicPolicy: true
+  #       IgnorePublicAcls: true
+  #       RestrictPublicBuckets: true
+  #     LifecycleConfiguration:
+  #       Rules:
+  #         - Id: ArchiveOldState
+  #           Status: Enabled
+  #           Transitions:
+  #             - StorageClass: INTELLIGENT_TIERING
+  #               TransitionInDays: 1
+  #         - Id: ExpireOldState
+  #           Status: Enabled
+  #           ExpirationInDays: 30
 
   # API Gateway (HTTP)
   HttpApi:

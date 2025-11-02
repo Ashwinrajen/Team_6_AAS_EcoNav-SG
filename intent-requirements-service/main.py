@@ -380,11 +380,11 @@ class IntentRequirementsService:
             crew = Crew(
                 agents=[self.requirements_agent], 
                 tasks=[task], 
-                verbose=False,
-                memory=False, 
-                process_timeout=32
+                verbose=True,
+                memory=False,
+                process_timeout=60
             )
-            result = str(await self._run_crew(crew, timeout=35))
+            result = str(await self._run_crew(crew, timeout=65))
             
             # Parse result using advanced regex
             json_match = re.search(r'EXTRACTED_JSON:\s*(\{.*?\})\s*RESPONSE:', result, re.DOTALL | re.MULTILINE)
