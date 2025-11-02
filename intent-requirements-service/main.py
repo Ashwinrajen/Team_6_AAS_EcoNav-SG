@@ -382,9 +382,9 @@ class IntentRequirementsService:
                 tasks=[task], 
                 verbose=True,
                 memory=False,
-                process_timeout=60
+                process_timeout=120
             )
-            result = str(await self._run_crew(crew, timeout=65))
+            result = str(await self._run_crew(crew, timeout=125))
             
             # Parse result using advanced regex
             json_match = re.search(r'EXTRACTED_JSON:\s*(\{.*?\})\s*RESPONSE:', result, re.DOTALL | re.MULTILINE)

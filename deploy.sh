@@ -177,7 +177,7 @@ if sam deploy \
     --resolve-image-repos \
     --parameter-overrides \
         OpenAIKey="$OPENAI_KEY" \
-        ModelName=gpt-4o-mini \
+        ModelName=gpt-4o \
         StateBucketName="$BUCKET_NAME" \
         StateBasePrefix=prod \
     --no-confirm-changeset \

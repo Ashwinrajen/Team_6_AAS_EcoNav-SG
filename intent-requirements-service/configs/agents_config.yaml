@@ -32,5 +32,5 @@ requirements_gatherer:
     of collected information and always know exactly what's missing from the target structure.
   verbose: false
   allow_delegation: false  
-  max_iter: 15  # Increase from 3 to 15
-  max_execution_time: 90  # Increase from 60 to 90
+  max_iter: 25  # Increase from 3 to 15
+  max_execution_time: 100  # Increase from 60 to 90

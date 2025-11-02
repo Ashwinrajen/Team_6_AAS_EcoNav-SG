@@ -19,7 +19,7 @@ Parameters:
     Description: OpenAI API Key for LLM calls
   ModelName:
     Type: String
-    Default: gpt-4o-mini
+    Default: gpt-4o
     Description: OpenAI model to use
   StateBucketName:
     Type: String
