@@ -181,11 +181,11 @@ def gather_requirements(payload: dict):
     except Exception as e:
         print(f"❌ HTTP error calling requirements service: {e}")
         return {"success": False, "error": str(e)}
-
+    
 def create_session(payload: dict):
     """Create new session"""
     if DOWNSTREAM_MODE == "LAMBDA":
-        return _invoke_lambda(SHARED_LAMBDA, "POST", "/session/create", payload)  # APIGW v2 event
+        return _invoke_lambda(SHARED_LAMBDA, "POST", "/session/create", payload, direct=True)  # ← Add direct=True
     try:
         r = _session.post(f"{SHARED_BASE_URL}/session/create", json=payload, timeout=20)
         r.raise_for_status()

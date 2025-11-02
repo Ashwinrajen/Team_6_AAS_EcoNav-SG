@@ -41,64 +41,64 @@ def _effective_prefix(service_prefix: str) -> str:
     return _join_prefix(S3_BASE_PREFIX, service_prefix)
 
 
-# def _session_key(session_id: str) -> str:
-#     base = _effective_prefix(S3_SESSIONS_PREFIX)  # e.g., "dev/sessions/"
-#     return f"{base}{session_id}.json"
+def _session_key(session_id: str) -> str:
+    base = _effective_prefix(S3_SESSIONS_PREFIX)  # e.g., "dev/sessions/"
+    return f"{base}{session_id}.json"
 
 
 def _now_iso() -> str:
     return datetime.now().isoformat()
 
 
-# def get_session(session_id: str) -> Optional[Dict[str, Any]]:
-#     if not USE_S3: 
-#         return None  
-#     key = _session_key(session_id)
-#     try:
-#         obj = _s3.get_object(Bucket=S3_BUCKET_NAME, Key=key)
-#         body = obj["Body"].read().decode("utf-8")
-#         return json.loads(body)
-#     except _s3.exceptions.NoSuchKey:
-#         return None
-#     except ClientError as e:
-#         code = e.response.get("Error", {}).get("Code")
-#         if code in ("NoSuchKey", "404"):
-#             return None
-#         print(f"S3 get_session error: {e}")
-#         return None
+def get_session(session_id: str) -> Optional[Dict[str, Any]]:
+    if not USE_S3: 
+        return None  
+    key = _session_key(session_id)
+    try:
+        obj = _s3.get_object(Bucket=S3_BUCKET_NAME, Key=key)
+        body = obj["Body"].read().decode("utf-8")
+        return json.loads(body)
+    except _s3.exceptions.NoSuchKey:
+        return None
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "404"):
+            return None
+        print(f"S3 get_session error: {e}")
+        return None
 
 
-# def put_session(session: Dict[str, Any]) -> None:
-#     if not USE_S3:  
-#         print(f"📝 Local storage mode - skipping S3 for session {session.get('session_id')}")  
-#         return  
-#     if not S3_BUCKET_NAME:
-#         raise RuntimeError("S3_BUCKET_NAME is not set")
-#     key = _session_key(session["session_id"])
-#     body = json.dumps(session, ensure_ascii=False).encode("utf-8")
-#     _s3.put_object(
-#         Bucket=S3_BUCKET_NAME,
-#         Key=key,
-#         Body=body,
-#         ContentType="application/json",
-#         ServerSideEncryption="AES256",
-#     )
+def put_session(session: Dict[str, Any]) -> None:
+    if not USE_S3:  
+        print(f"📝 Local storage mode - skipping S3 for session {session.get('session_id')}")  
+        return  
+    if not S3_BUCKET_NAME:
+        raise RuntimeError("S3_BUCKET_NAME is not set")
+    key = _session_key(session["session_id"])
+    body = json.dumps(session, ensure_ascii=False).encode("utf-8")
+    _s3.put_object(
+        Bucket=S3_BUCKET_NAME,
+        Key=key,
+        Body=body,
+        ContentType="application/json",
+        ServerSideEncryption="AES256",
+    )
 
 
-# def update_session(session_id: str, updates: Dict[str, Any]) -> None:
-#     if not USE_S3:  
-#         return  
-#     existing = get_session(session_id) or {"session_id": session_id, "created_at": _now_iso()}
-#     existing.update(updates or {})
-#     existing.setdefault("last_active", _now_iso())
-#     put_session(existing)
+def update_session(session_id: str, updates: Dict[str, Any]) -> None:
+    if not USE_S3:  
+        return  
+    existing = get_session(session_id) or {"session_id": session_id, "created_at": _now_iso()}
+    existing.update(updates or {})
+    existing.setdefault("last_active", _now_iso())
+    put_session(existing)
 
 
-# def delete_session(session_id: str) -> None:
-#     if not USE_S3: 
-#         return  
-#     key = _session_key(session_id)
-#     try:
-#         _s3.delete_object(Bucket=S3_BUCKET_NAME, Key=key)
-#     except ClientError as e:
-#         print(f"S3 delete_session error: {e}")
+def delete_session(session_id: str) -> None:
+    if not USE_S3: 
+        return  
+    key = _session_key(session_id)
+    try:
+        _s3.delete_object(Bucket=S3_BUCKET_NAME, Key=key)
+    except ClientError as e:
+        print(f"S3 delete_session error: {e}")

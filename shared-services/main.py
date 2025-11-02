@@ -181,8 +181,8 @@ _mangum = Mangum(app)
 def lambda_handler(event, context):
     """
     Supports:
-    1) Direct invokes (simple shape): {"path": "/session/create", "httpMethod": "POST", "body": {...}}
-    2) API Gateway/HttpApi proxy events (handled by Mangum)
+    1) Direct invokes: {"path": "/session/create", "httpMethod": "POST", "body": {...}}
+    2) API Gateway proxy events (handled by Mangum)
     """
     if isinstance(event, dict) and "path" in event:
         path = event.get("path", "")
@@ -191,17 +191,17 @@ def lambda_handler(event, context):
         if isinstance(body, str):
             try:
                 body = json.loads(body)
-            except Exception:
+            except:
                 body = {}
 
         with TestClient(app) as c:
             resp = c.request(method, path, json=body if method in ("POST", "PUT") else None)
             try:
                 return resp.json()
-            except Exception:
+            except:
                 return {"status_code": resp.status_code, "text": resp.text}
 
-    # Default to APIGW proxy handling
+    # Fallback to APIGW proxy
     return _mangum(event, context)
 
 if __name__ == "__main__":
