@@ -51,12 +51,29 @@ def get_memory(session_id: str, target_template: dict = None) -> Dict[str, Any]:
     })
 
 def put_memory(session_id: str, conversation_history: list, requirements: dict, phase: str):
-    """Store memory data ONLY in-memory (no S3 upload)"""
-    print(f"📝 Storing session {session_id} in memory only (S3 disabled for requirements)")
-    _memory_store[session_id] = {
+    """Store memory data in both memory AND S3"""
+    data = {
         "session_id": session_id,
         "conversation_history": conversation_history[-int(os.getenv("MAX_HISTORY", "10")):],
         "requirements": requirements,
         "phase": phase,
         "last_updated": _now_iso()
     }
+    
+    # Store in memory
+    _memory_store[session_id] = data
+    
+    # ALSO store in S3
+    if USE_S3 and S3_BUCKET_NAME:
+        key = _memory_key(session_id)
+        try:
+            _s3.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=key,
+                Body=json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"),
+                ContentType="application/json",
+                ServerSideEncryption="AES256"
+            )
+            print(f"✅ Session memory stored in S3: {key}")
+        except Exception as e:
+            print(f"❌ Error storing memory to S3: {e}")
