@@ -348,6 +348,29 @@ class IntentRequirementsService:
                 "completion_status": "incomplete", 
                 "interests": []                    
             }
+        
+    # Add this function before _handle_planning
+    def _normalize_field_names(self, data: Dict) -> Dict:
+        """Normalize field names to match expected schema"""
+        if not isinstance(data, dict):
+            return data
+        
+        normalized = {}
+        field_mappings = {
+            'dest': 'destination_city',
+            'destination': 'destination_city',
+            'location': 'destination_city',
+            'startDate': 'start_date',
+            'endDate': 'end_date',
+            'budgetSGD': 'budget_total_sgd',
+            'budget': 'budget_total_sgd',
+        }
+        
+        for key, value in data.items():
+            new_key = field_mappings.get(key, key)
+            normalized[new_key] = self._normalize_field_names(value) if isinstance(value, dict) else value
+        
+        return normalized
     
     async def _handle_planning(self, user_input: str, session_id: str) -> Dict:
         """Handle planning with comprehensive requirements collection"""
@@ -401,16 +424,24 @@ class IntentRequirementsService:
                 try:
                     extracted_json = json.loads(json_match.group(1))
                     
-                    # Validate structure
-                    if "requirements" not in extracted_json:
-                        print("⚠️ Invalid JSON structure - missing 'requirements' key")
-                        extracted_json = {"requirements": extracted_json}
-                    
-                    # Merge with existing to avoid data loss
-                    updated_requirements = self._deep_merge(
-                        session["requirements"], 
-                        extracted_json
-                    )
+                    # Validate and normalize structure
+                    if "requirements" in extracted_json:
+                        extracted_reqs = extracted_json["requirements"]
+                    else:
+                        print("⚠️ Wrapping extracted JSON in requirements key")
+                        extracted_reqs = extracted_json
+
+                    # Check session for double-nesting and fix
+                    session_reqs = session["requirements"]
+                    if "requirements" in session_reqs:
+                        print("⚠️ Fixing double-nested session requirements")
+                        session_reqs = session_reqs["requirements"]
+
+                    # Merge at the requirements level
+                    merged_reqs = self._deep_merge(session_reqs, extracted_reqs)
+
+                    # Always wrap in requirements key for consistency
+                    updated_requirements = {"requirements": merged_reqs}
                 except json.JSONDecodeError as e:
                     print(f"{Fore.YELLOW}⚠️ JSON parsing failed, using existing requirements: {e}{Style.RESET_ALL}")
             # if json_match:

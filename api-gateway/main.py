@@ -228,21 +228,30 @@ class TravelGateway:
                     }
                     for msg in session_data["conversation_history"]
                 ]
-            
-            reqs = requirements_data.get("requirements", {})
-            
+                            
+            # Handle potential double-nesting
+            if "requirements" in requirements_data:
+                reqs = requirements_data["requirements"]
+                # Check for double-nesting
+                if "requirements" in reqs:
+                    reqs = reqs["requirements"]
+            else:
+                reqs = requirements_data
+
             final_json = {
                 "status_code": status_code,
                 "interest": interests,
-                "message": conversation_messages,  # CHANGED: Now array of {role, message}
+                "message": conversation_messages,
                 "json_filename": f"sessions/{session_id}.json",
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat(),
-                "requirements": {
-                    **reqs,
-                    "travelers": reqs.get("travelers", {"adults": None, "children": None})
-                }
+                "requirements": reqs  # Use cleaned reqs directly
             }
+
+            # Ensure travelers exist
+            if "travelers" not in final_json["requirements"]:
+                final_json["requirements"]["travelers"] = {"adults": None, "children": None}
+
             return final_json
 
         except Exception as e:
@@ -460,10 +469,20 @@ async def plan_travel(request: TravelPlanningRequest):
 @app.get("/travel/session/{session_id}")
 @handle_errors
 async def get_session_info(session_id: str):
-    """Return session info proxied from shared-services (HTTP) or shared-services Lambda."""
     res = get_session(session_id)
     _ensure_ok(res, "get session")
-    return res
+    
+    # Ensure consistent structure
+    if "data" in res:
+        session_data = res["data"]
+    else:
+        session_data = res
+    
+    return {
+        "session_id": session_id,
+        "data": session_data,
+        "success": res.get("success", True)
+    }
 
 @app.get("/")
 async def root():
