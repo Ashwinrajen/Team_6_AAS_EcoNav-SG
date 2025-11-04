@@ -8,7 +8,7 @@ import time
 
 # Configuration
 # API_GATEWAY_URL = "http://localhost:8000"
-API_GATEWAY_URL = "https://b7uwrk19nf.execute-api.ap-southeast-1.amazonaws.com"
+API_GATEWAY_URL = "https://dhn05avgt6.execute-api.ap-southeast-1.amazonaws.com"
 
 class TravelGatewayClient:
     """Simplified client for travel gateway API"""
@@ -82,6 +82,9 @@ def initialize_session():
     if "optional_progress" not in st.session_state:
         st.session_state.optional_progress = "0/6"
 
+    if "retrieval_agent_data" not in st.session_state:
+        st.session_state.retrieval_agent_data = None
+
 def display_sidebar():
     """Display sidebar with session info and controls"""
     with st.sidebar:
@@ -107,10 +110,21 @@ def display_sidebar():
                 if st.session_state.collection_complete:
                     st.success("✅ Collection Complete!")
                     
+                    # NEW: Show retrieval agent status
+                    if st.session_state.retrieval_agent_data:
+                        retrieval_status = st.session_state.retrieval_agent_data.get("status")
+                        if retrieval_status == "success":
+                            st.success("🌍 Sustainability analysis ready!")
+                        elif retrieval_status == "timeout":
+                            st.warning("⏱️ Analysis in progress...")
+                        else:
+                            st.error("❌ Analysis failed")
+                    
                     # Show final JSON info if available
                     if st.session_state.final_json_info:
                         with st.expander("📋 Final JSON Info"):
                             st.json(st.session_state.final_json_info)
+
             except Exception:
                 st.warning("Could not load session info")
         else:
@@ -121,7 +135,6 @@ def display_sidebar():
         # Control buttons with unique keys
         st.markdown("### Actions")
         
-        # NEW SESSION: Completely fresh start
         if st.button("🆕 New Session", key="new_session_btn", use_container_width=True, type="primary"):
             # Reset EVERYTHING for a fresh start
             st.session_state.session_id = None
@@ -129,7 +142,8 @@ def display_sidebar():
             st.session_state.collection_complete = False
             st.session_state.final_json_info = None
             st.session_state.mandatory_complete = False
-            st.session_state.optional_progress = "0/6"   
+            st.session_state.optional_progress = "0/6"
+            st.session_state.retrieval_agent_data = None 
         
         st.caption("Starts a completely new travel planning session")
         
@@ -219,12 +233,20 @@ def process_user_input(user_input: str):
                 "planning_agent_status": result.get("planning_agent_status"),
             }
             
+            # NEW: Store retrieval agent data if available
+            if result.get("retrieval_agent"):
+                st.session_state.retrieval_agent_data = result.get("retrieval_agent")
+            
             # Show celebration
             st.balloons()
         
         # Display response
         response_text = result.get("response", "No response received")
         st.write(response_text)
+        
+        # NEW: Display retrieval agent results if available
+        if result.get("retrieval_agent") and result["retrieval_agent"].get("status") == "success":
+            display_retrieval_results(result["retrieval_agent"])
         
         # Add to message history with metadata
         st.session_state.messages.append({
@@ -254,6 +276,68 @@ def process_user_input(user_input: str):
     # Force rerun after completion to update UI immediately
     if result.get("collection_complete", False):
         st.rerun()
+
+def display_retrieval_results(retrieval_data: Dict[str, Any]):
+    """Display retrieval agent results in a nice format"""
+    st.divider()
+    
+    st.subheader("🌍 Sustainability Analysis")
+    
+    if retrieval_data.get("status") == "success":
+        data = retrieval_data.get("data", {})
+        
+        # Create tabs for different sections
+        tab1, tab2, tab3 = st.tabs(["📊 Summary", "🔍 Details", "📄 Raw Data"])
+        
+        with tab1:
+            st.success("✅ Carbon footprint analysis completed successfully!")
+            
+            # Display key metrics if available
+            if isinstance(data, dict):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    if "carbon_footprint" in data:
+                        st.metric("Carbon Footprint", f"{data['carbon_footprint']} kg CO₂")
+                
+                with col2:
+                    if "sustainability_score" in data:
+                        st.metric("Sustainability Score", f"{data['sustainability_score']}/100")
+                
+                with col3:
+                    if "eco_rating" in data:
+                        st.metric("Eco Rating", data['eco_rating'])
+                
+                # Show recommendations if available
+                if "recommendations" in data:
+                    st.markdown("#### 💡 Recommendations")
+                    for rec in data["recommendations"]:
+                        st.info(rec)
+        
+        with tab2:
+            st.markdown("#### Detailed Analysis")
+            
+            if isinstance(data, dict):
+                # Display nested data in expandable sections
+                for key, value in data.items():
+                    if key not in ["carbon_footprint", "sustainability_score", "eco_rating", "recommendations"]:
+                        with st.expander(f"📌 {key.replace('_', ' ').title()}"):
+                            if isinstance(value, (dict, list)):
+                                st.json(value)
+                            else:
+                                st.write(value)
+            else:
+                st.json(data)
+        
+        with tab3:
+            st.markdown("#### Raw Response Data")
+            st.json(data)
+    
+    elif retrieval_data.get("status") == "timeout":
+        st.warning("⏱️ Retrieval agent is still processing. Please check back later.")
+    
+    else:
+        st.error(f"❌ Retrieval agent error: {retrieval_data.get('message', 'Unknown error')}")
 
 def display_help_section():
     """Display help and usage information"""

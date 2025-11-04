@@ -478,27 +478,33 @@ class IntentRequirementsService:
             all_complete = completion_info["all_complete"]
             optional_filled = completion_info["optional_filled"]
 
-            if all_complete or mandatory_complete:
-                # Remove common question patterns if completion is detected
+            # Determine completion status
+            if all_complete:
+                completion_status = "all_complete"
+                new_phase = "complete"
+                
+                # REMOVE the question-asking part when complete
                 question_patterns = [
                     r"could you (?:please )?(?:share|tell|provide|let me know)[^?]*\?",
                     r"(?:what|which|how much|how many)[^?]*\?",
                     r"please (?:share|tell|provide)[^?]*\?",
                     r"now,?\s+(?:could|can|would)[^?]*\?",
+                    r"if there'?s anything else[^.]*\.",  # ← ADD THIS
+                    r"feel free to let me know[^.]*\.",   # ← ADD THIS
                 ]
                 
-                original_response = response_text
                 for pattern in question_patterns:
-                    # Only remove if we're complete
-                    if all_complete:
-                        response_text = re.sub(pattern, "", response_text, flags=re.IGNORECASE)
+                    response_text = re.sub(pattern, "", response_text, flags=re.IGNORECASE)
                 
-                # Clean up any resulting formatting issues
+                # Clean up formatting
                 response_text = re.sub(r'\s+', ' ', response_text).strip()
-                response_text = re.sub(r'\.\s*\)', '.', response_text)
+                response_text = re.sub(r'\.\s*\.', '.', response_text)
                 
-                if response_text != original_response:
-                    print(f"{Fore.YELLOW}⚠️ Removed question from response due to completion status{Style.RESET_ALL}")
+                # ADD automatic completion message
+                if not response_text.endswith("!"):
+                    response_text = response_text.rstrip('.') + "!"
+                
+                response_text += "\n\n🎉 Perfect! All information collected. Your travel plan is being prepared now!"
 
             # Determine completion status
             if all_complete:
@@ -589,75 +595,47 @@ class IntentRequirementsService:
             "interests": []                    
         }
 
-    def _check_completion(self, requirements: Dict) -> Dict:
-        """Check if requirements are complete"""
-        req = requirements.get("requirements", {})
+    def _check_completion(self, requirements: Dict[str, Any]) -> Dict[str, Any]:
+        """Check if requirements collection is complete"""
+
+        reqs = requirements.get("requirements", {})
+        optional = reqs.get("optional", {})
         
-        # Helper function to check if value is actually filled
-        def is_filled(value):
-            """Check if a value is meaningfully filled (not None, not null string, not empty)"""
-            if value is None:
-                return False
-            if isinstance(value, str):
-                return value.strip() != "" and value.lower() != "null"
-            if isinstance(value, (int, float)):
-                return True
-            if isinstance(value, list):
-                return len(value) > 0
-            return bool(value)
+        # Required fields check
+        required_fields = {
+            "destination_city": reqs.get("destination_city"),
+            "start_date": reqs.get("trip_dates", {}).get("start_date"),
+            "end_date": reqs.get("trip_dates", {}).get("end_date"),
+            "adults": reqs.get("travelers", {}).get("adults"),
+            "budget": reqs.get("budget_total_sgd"),
+            "pace": reqs.get("pace")
+        }
         
-        # Check mandatory fields - ALL must be filled with actual values
-        mandatory_fields_filled = [
-            is_filled(req.get("destination_city")),
-            is_filled(req.get("trip_dates", {}).get("start_date")),
-            is_filled(req.get("trip_dates", {}).get("end_date")),
-            is_filled(req.get("duration_days")),
-            is_filled(req.get("travelers", {}).get("adults")),
-            is_filled(req.get("budget_total_sgd")),
-            is_filled(req.get("pace"))
-        ]
+        mandatory_complete = all(v is not None and v != "" for v in required_fields.values())
         
-        mandatory_complete = all(mandatory_fields_filled)
+        # Optional fields check - FIX: Be more lenient
+        optional_fields = {
+            "eco_preferences": optional.get("eco_preferences"),
+            "dietary_preferences": optional.get("dietary_preferences"),
+            "interests": optional.get("interests"),
+            "uninterests": optional.get("uninterests"),
+            "accessibility_needs": optional.get("accessibility_needs"),
+            "group_type": optional.get("group_type")  # ← Check this field!
+        }
         
-        # Check optional fields
-        optional = req.get("optional", {})
+        # Count filled optional fields (accept "no_preference", "none", or actual values)
+        optional_filled = sum(
+            1 for v in optional_fields.values() 
+            if v is not None and v != "" and v != []
+        )
         
-        # Count filled optional fields (6 total possible)
-        optional_filled = 0
-        
-        # 1. eco_preferences
-        if is_filled(optional.get("eco_preferences")):
-            optional_filled += 1
-        
-        # 2. dietary_preferences
-        if is_filled(optional.get("dietary_preferences")):
-            optional_filled += 1
-        
-        # 3. accessibility_needs
-        if is_filled(optional.get("accessibility_needs")):
-            optional_filled += 1
-        
-        # 4. group_type
-        if is_filled(optional.get("group_type")):
-            optional_filled += 1
-        
-        # 5. accommodation_location.neighborhood
-        if is_filled(optional.get("accommodation_location", {}).get("neighborhood")):
-            optional_filled += 1
-        
-        # 6. interests (check if array has items)
-        interests = optional.get("interests", [])
-        if interests and len(interests) > 0:
-            optional_filled += 1
-        
-        # All complete = mandatory complete AND all 6 optional fields filled
-        all_complete = mandatory_complete and optional_filled >= 6
+        all_complete = mandatory_complete and optional_filled >= 6  # ← Changed from == to >=
         
         return {
             "mandatory_complete": mandatory_complete,
-            "optional_filled": optional_filled,
             "all_complete": all_complete,
-            "interests": interests if interests else []
+            "optional_filled": optional_filled,
+            "optional_total": 6
         }
     
 # -------------------------------------------------

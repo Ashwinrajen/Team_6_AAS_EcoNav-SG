@@ -84,7 +84,7 @@ STACK_COUNT=$(echo "$STACKS" | jq -r '. | length')
 echo -e "${CYAN}Scanning for S3 buckets...${NC}"
 BUCKETS=$(aws s3api list-buckets \
     --region "$REGION" \
-    --query 'Buckets[?contains(Name, `stp-state`)].{Name:Name, Created:CreationDate}' \
+    --query 'Buckets[?contains(Name, `stp-req`)].{Name:Name, Created:CreationDate}' \
     --output json 2>/dev/null)
 BUCKET_COUNT=$(echo "$BUCKETS" | jq -r '. | length')
 
@@ -105,7 +105,7 @@ API_COUNT=$(echo "$APIS" | jq -r '. | length')
 echo -e "${CYAN}Scanning for ECR repositories...${NC}"
 ECR_REPOS=$(aws ecr describe-repositories \
     --region "$REGION" \
-    --query 'repositories[?contains(repositoryName, `travel-planner-stack`)].{Name:repositoryName, URI:repositoryUri, Created:createdAt}' \
+    --query 'repositories[?contains(repositoryName, `travelplannerstack`)].{Name:repositoryName, URI:repositoryUri, Created:createdAt}' \
     --output json 2>/dev/null)
 ECR_COUNT=$(echo "$ECR_REPOS" | jq -r '. | length')
 

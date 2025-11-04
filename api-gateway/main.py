@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+import requests
+import time 
 
 # ---------------------------------------------------------------------------
 # Path setup to import shared module
@@ -50,6 +52,9 @@ S3_ENDPOINT = os.getenv("AWS_S3_ENDPOINT")
 # Planning Agent Configuration
 PLANNING_AGENT_URL = os.getenv("PLANNING_AGENT_URL")
 PLANNING_AGENT_ENABLED = os.getenv("PLANNING_AGENT_ENABLED")
+
+RETRIEVAL_AGENT_URL = os.getenv("RETRIEVAL_AGENT_URL")
+RETRIEVAL_AGENT_API_KEY = os.getenv("RETRIEVAL_AGENT_API_KEY")
 
 # ---------------------------------------------------------------------------
 # S3 Client Setup
@@ -130,26 +135,85 @@ def _store_for_call_in_s3(session_id: str, final_json: Dict[str, Any], s3_key: s
 # ---------------------------------------------------------------------------
 # Downstream Agent Integration
 # ---------------------------------------------------------------------------
+
 async def _call_planning_agent(final_json: Dict[str, Any]) -> Dict[str, Any]:
-    """Call downstream planning agent with final JSON"""
-    if not PLANNING_AGENT_ENABLED or str(PLANNING_AGENT_ENABLED).lower() == "false":
-        print("ℹ️ Planning agent is disabled (PLANNING_AGENT_ENABLED=false)")
-        return {"status": "skipped", "message": "Planning agent not enabled"}
-    if not PLANNING_AGENT_URL:
-        print("⚠️ PLANNING_AGENT_URL not configured")
-        return {"status": "error", "message": "Planning agent URL not configured"}
-    try:
-        print(f"📤 Calling planning agent at: {PLANNING_AGENT_URL}")
-        import httpx
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(f"{PLANNING_AGENT_URL}/process", json=final_json)
+    """Call the retrieval agent with final JSON details"""
+    max_retries = 3
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            session_id = final_json.get("session_id")
+            s3_key = f"{S3_BASE_PREFIX}/final/{session_id}.json" if S3_BASE_PREFIX else f"final/{session_id}.json"
+            
+            payload = {
+                "bucket_name": S3_BUCKET_NAME,
+                "key": s3_key,
+                "sender_agent": "Intent Agent",
+                "session": session_id
+            }
+            
+            headers = {
+                "Content-Type": "application/json",
+                "X-API-Key": RETRIEVAL_AGENT_API_KEY
+            }
+            
+            print("\n" + "="*80)
+            print(f"🚀 CALLING RETRIEVAL AGENT (Attempt {attempt + 1}/{max_retries})")
+            print("="*80)
+            print(f"📍 URL: {RETRIEVAL_AGENT_URL}")
+            print(f"📦 Payload:")
+            print(json.dumps(payload, indent=2))
+            print("="*80 + "\n")
+            
+            response = requests.post(
+                RETRIEVAL_AGENT_URL,
+                json=payload,
+                headers=headers,
+                timeout=400  # ← Increased from 60 to 120 seconds
+            )
+            
             response.raise_for_status()
             result = response.json()
-        print(f"✅ Planning agent responded successfully")
-        return {"status": "success", "data": result}
-    except Exception as e:
-        print(f"❌ Error calling planning agent: {e}")
-        return {"status": "error", "message": str(e)}
+            
+            print("\n" + "="*80)
+            print(f"✅ RETRIEVAL AGENT RESPONSE RECEIVED")
+            print("="*80)
+            print(f"📥 Status Code: {response.status_code}")
+            print(f"📄 Response:")
+            print(json.dumps(result, indent=2))
+            print("="*80 + "\n")
+            
+            return {
+                "status": "success",
+                "retrieval_response": result,
+                "message": "Successfully called retrieval agent"
+            }
+            
+        except requests.exceptions.Timeout:
+            print(f"\n⚠️ Attempt {attempt + 1} timed out")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                print("❌ All retry attempts exhausted")
+                return {
+                    "status": "timeout",
+                    "message": "Retrieval agent took too long to respond after 3 attempts"
+                }
+                
+        except requests.exceptions.RequestException as e:
+            print(f"\n❌ Attempt {attempt + 1} failed: {str(e)}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Failed after {max_retries} attempts: {str(e)}"
+                }
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -161,14 +225,17 @@ class TravelPlanningRequest(BaseModel):
 class TravelPlanningResponse(BaseModel):
     success: bool
     response: str
-    session_id: Optional[str] = None  
+    session_id: str
     intent: str
     conversation_state: str
     trust_score: float
-    error: Optional[str] = None
-    collection_complete: bool = Field(default=False)
+    collection_complete: bool
+    completion_status: Optional[str] = None
+    optional_progress: Optional[str] = None
     final_json_s3_key: Optional[str] = None
     planning_agent_status: Optional[str] = None
+    retrieval_agent: Optional[Dict[str, Any]] = None  # ← ADD THIS
+    error: Optional[str] = None
 
 # ---------------------------------------------------------------------------
 # Error handling decorator
@@ -383,8 +450,8 @@ class TravelGateway:
                     update_session(session_id, {"initial_json_uploaded": True})
                     print("✅ Marked initial JSON as uploaded")
 
-            # Build response
-            return {
+            # Build base response
+            base_response = {
                 "success": True,
                 "response": response_text,
                 "session_id": session_id,
@@ -397,6 +464,22 @@ class TravelGateway:
                 "final_json_s3_key": final_json_s3_key,
                 "planning_agent_status": agent_response.get("status") if agent_response else None
             }
+
+            # Add retrieval agent data if available
+            if agent_response and agent_response.get("status") == "success":
+                retrieval_data = agent_response.get("retrieval_response", {})
+                base_response["retrieval_agent"] = {
+                    "status": "success",
+                    "data": retrieval_data,
+                    "message": "Carbon footprint analysis completed"
+                }
+                
+                # Optionally append to user-facing response
+                if retrieval_data:
+                    response_text += "\n\n🌍 Sustainability Analysis Complete! Your carbon footprint data is ready."
+                    base_response["response"] = response_text
+
+            return base_response
 
         except HTTPException:
             raise
