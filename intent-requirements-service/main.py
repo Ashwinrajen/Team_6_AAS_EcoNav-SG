@@ -413,6 +413,30 @@ class IntentRequirementsService:
                     )
                 except json.JSONDecodeError as e:
                     print(f"{Fore.YELLOW}⚠️ JSON parsing failed, using existing requirements: {e}{Style.RESET_ALL}")
+            # if json_match:
+            #     try:
+            #         extracted_json = json.loads(json_match.group(1))
+                    
+            #         # Extract the inner requirements object for merging
+            #         if "requirements" in extracted_json:
+            #             extracted_reqs = extracted_json["requirements"]
+            #         else:
+            #             print("⚠️ Invalid JSON structure - missing 'requirements' key")
+            #             extracted_reqs = extracted_json
+                    
+            #         # Fix if session has double nesting
+            #         session_reqs = session["requirements"]
+            #         if "requirements" in session_reqs:
+            #             print("⚠️ Fixing double-nested session requirements")
+            #             session_reqs = session_reqs["requirements"]
+
+            #         # Merge with existing to avoid data loss
+            #         updated_requirements = self._deep_merge(
+            #             session_reqs, 
+            #             extracted_reqs  # ← Use extracted_reqs, not extracted_json!
+            #         )
+            #     except json.JSONDecodeError as e:
+            #         print(f"{Fore.YELLOW}⚠️ JSON parsing failed, using existing requirements: {e}{Style.RESET_ALL}")
 
             # Extract interests BEFORE using it
             interests = _extract_interests(updated_requirements)

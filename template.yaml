@@ -145,7 +145,7 @@ Resources:
           OPENAI_MODEL_NAME: !Ref ModelName
           S3_BUCKET_NAME: !Ref StateBucketName
           S3_BASE_PREFIX: !Ref StateBasePrefix
-          S3_MEMORY_PREFIX: "memory"
+          S3_MEMORY_PREFIX: "requirements/"
           AWS_S3_ENDPOINT: !Ref AwsS3Endpoint
           USE_S3: "true"
           CREWAI_TELEMETRY_DISABLED: "1"
