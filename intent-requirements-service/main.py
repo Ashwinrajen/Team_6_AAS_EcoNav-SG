@@ -211,18 +211,27 @@ class IntentRequirementsService:
         user_input: str,
         agent_response: str,
         requirements: Dict = None,
-        phase: Optional[str] = None
+        phase: Optional[str] = None,
+        conversation_history: list = None
     ):
         """Persist conversation + requirements with minimal mutation"""
-        session = self._get_session_data(session_id)
-        conversation_history = session.get("conversation_history", [])
+        # Load fresh session data if history not provided
+        if conversation_history is None:
+            session = self._get_session_data(session_id)
+            conversation_history = session.get("conversation_history", []).copy()  # ← COPY IT
+            reqs = requirements or session.get("requirements", copy.deepcopy(self.target_json_template))
+            new_phase = phase or session.get("phase", "initial")
+        else:
+            # CRITICAL: Make a copy to avoid mutating the original
+            conversation_history = conversation_history.copy()  # ← COPY IT
+            reqs = requirements if requirements is not None else copy.deepcopy(self.target_json_template)
+            new_phase = phase if phase is not None else "initial"
+        
+        # Append new messages to the COPY
         conversation_history.append({"role": "user", "message": user_input})
         conversation_history.append({"role": "agent", "message": agent_response})
         
-        reqs = requirements or session.get("requirements", copy.deepcopy(self.target_json_template))
-        new_phase = phase or session.get("phase", "initial")
-        
-        # Persist
+        # Persist the updated copy
         put_memory(session_id, conversation_history, reqs, new_phase)
     
     # ---------- AGENT WORK ----------
@@ -301,6 +310,7 @@ class IntentRequirementsService:
     
     async def _handle_greeting(self, user_input: str, session_id: str) -> Dict:
         """Handle greeting and transition to planning"""
+        session = self._get_session_data(session_id) 
         try:
             task_config = self.tasks_config.get('greeting_to_planning_transition', {})
             prompt = task_config.get('description', '').format(user_input=user_input)
@@ -321,7 +331,7 @@ class IntentRequirementsService:
             response = str(await self._run_crew(crew, timeout=20))
             
             # Move/keep phase as "initial"
-            self._update_session(session_id, user_input, response, requirements=None, phase="initial")
+            self._update_session(session_id, user_input, response, requirements=None, phase="initial", conversation_history=session["conversation_history"])
             session = self._get_session_data(session_id)
             
             result = {
@@ -338,7 +348,7 @@ class IntentRequirementsService:
             print(f"{Fore.RED}❌ Greeting handling error: {type(e).__name__}: {e}{Style.RESET_ALL}")
             # graceful fallback
             fallback = "Hello! I'm helping you plan your trip. Where would you like to go and when?"
-            self._update_session(session_id, user_input, fallback, requirements=None, phase="initial")
+            self._update_session(session_id, user_input, fallback, requirements=None, phase="initial", conversation_history=session["conversation_history"])
             session = self._get_session_data(session_id)
             return {
                 "response": fallback,
@@ -535,7 +545,8 @@ class IntentRequirementsService:
                 user_input,
                 response_text,
                 requirements=updated_requirements,
-                phase=new_phase
+                phase=new_phase,
+                conversation_history=session["conversation_history"]  # ← ADD THIS LINE
             )
             
             final_result = {
@@ -556,7 +567,7 @@ class IntentRequirementsService:
             # Fallback response
             session = self._get_session_data(session_id)
             fallback = "I'd be happy to help you plan your sustainable travel! Could you tell me where you'd like to go and when?"
-            self._update_session(session_id, user_input, fallback, requirements=session["requirements"], phase=session.get("phase","initial"))
+            self._update_session(session_id, user_input, fallback, requirements=session["requirements"], phase=session.get("phase","initial"), conversation_history=session["conversation_history"])
             return {
                 "response": fallback,
                 "intent": "planning", 
@@ -584,7 +595,7 @@ class IntentRequirementsService:
             response = "I'm here to help you plan sustainable travel. Where would you like to go for your next trip?"
         
         # Persist the assistant response in the history as well
-        self._update_session(session_id, user_input, response, requirements=session["requirements"], phase=session.get("phase","initial"))
+        self._update_session(session_id, user_input, response, requirements=session["requirements"], phase=session.get("phase","initial"), conversation_history=session["conversation_history"])
         
         return {
             "response": response,
@@ -613,29 +624,35 @@ class IntentRequirementsService:
         
         mandatory_complete = all(v is not None and v != "" for v in required_fields.values())
         
-        # Optional fields check - FIX: Be more lenient
+        # Optional fields check
         optional_fields = {
             "eco_preferences": optional.get("eco_preferences"),
             "dietary_preferences": optional.get("dietary_preferences"),
             "interests": optional.get("interests"),
             "uninterests": optional.get("uninterests"),
             "accessibility_needs": optional.get("accessibility_needs"),
-            "group_type": optional.get("group_type")  # ← Check this field!
+            "accommodation_location": optional.get("accommodation_location", {}),  # ← ADD THIS
+            "group_type": optional.get("group_type")
         }
-        
-        # Count filled optional fields (accept "no_preference", "none", or actual values)
-        optional_filled = sum(
-            1 for v in optional_fields.values() 
-            if v is not None and v != "" and v != []
-        )
-        
-        all_complete = mandatory_complete and optional_filled >= 6  # ← Changed from == to >=
+
+        # Count filled optional fields - be more strict
+        optional_filled = 0
+        if optional_fields["eco_preferences"]: optional_filled += 1
+        if optional_fields["dietary_preferences"]: optional_filled += 1
+        if optional_fields["interests"] and len(optional_fields["interests"]) > 0: optional_filled += 1
+        if optional_fields["uninterests"] and len(optional_fields["uninterests"]) > 0: optional_filled += 1
+        if optional_fields["accessibility_needs"]: optional_filled += 1
+        # Check if accommodation_location has neighborhood filled
+        if optional_fields["accommodation_location"] and optional_fields["accommodation_location"].get("neighborhood"): optional_filled += 1  # ← ADD THIS
+        if optional_fields["group_type"]: optional_filled += 1
+
+        all_complete = mandatory_complete and optional_filled == 7  # ← CHANGE TO 7
         
         return {
             "mandatory_complete": mandatory_complete,
             "all_complete": all_complete,
             "optional_filled": optional_filled,
-            "optional_total": 6
+            "optional_total": 7  # ← CHANGE TO 7
         }
     
 # -------------------------------------------------

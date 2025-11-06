@@ -199,8 +199,8 @@ Resources:
           S3_BASE_PREFIX: !Ref StateBasePrefix
           AWS_S3_ENDPOINT: !Ref AwsS3Endpoint
           USE_S3: "true"
-          RETRIEVAL_AGENT_URL: "https://vvnlcyy8lg.execute-api.ap-southeast-1.amazonaws.com/prod/research"
-          RETRIEVAL_AGENT_API_KEY: "izomEKgHwY9wyydDaarDh4KcEjisXCvz9Y73mV3q"  # ← ADD THIS
+          RETRIEVAL_AGENT_URL: "https://29jxwf52gb.execute-api.ap-southeast-1.amazonaws.com/prod/research"
+          RETRIEVAL_AGENT_API_KEY: "pYSqYcivG1504xjeQAskn2iyVS7fZ2Uj14lK1w8v"  # ← ADD THIS
       Events:
         TravelPlan:
           Type: HttpApi
