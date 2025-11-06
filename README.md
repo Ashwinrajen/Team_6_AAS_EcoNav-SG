@@ -4,20 +4,6 @@ An AI-powered, serverless travel planning system that intelligently collects use
 
 ---
 
-## 📋 Table of Contents
-
-- [Overview](#-overview)
-- [Architecture](#-architecture)
-- [Technology Stack](#-technology-stack)
-- [Prerequisites](#-prerequisites)
-- [AWS Deployment](#-aws-deployment)
-- [Testing](#-testing)
-- [Security](#-security)
-- [Monitoring & Debugging](#-monitoring--debugging)
-- [Cleanup](#-cleanup)
-
----
-
 ## 🎯 Overview
 
 The **Intelligent Sustainable Travel Planning System** is a production-ready, enterprise-grade conversational AI platform that:
