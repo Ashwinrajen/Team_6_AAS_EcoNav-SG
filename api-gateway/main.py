@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import requests
 import time 
+from botocore.config import Config
 
 PLANNING_BUCKET_NAME = "iss-travel-planner"  # New bucket for planning agent
 
@@ -87,7 +88,12 @@ def lambda_synchronous_call(function_name: str, bucket_name: str, key: str,
     Invoke an AWS Lambda function synchronously.
     Returns the decoded JSON payload from the invoked function.
     """
-    client = boto3.client("lambda", region_name=AWS_REGION)
+    print(f"📝 Calling the Planning agent....")
+    
+    # ✅ ADD CONFIG:
+    cfg = Config(connect_timeout=60, read_timeout=900)
+    client = boto3.client("lambda", region_name=AWS_REGION, config=cfg)
+    
     payload = {
         "bucket_name": bucket_name,
         "key": key,
@@ -106,14 +112,23 @@ def lambda_synchronous_call(function_name: str, bucket_name: str, key: str,
         return {"error": str(e)}
 
 
-def _store_final_json_in_s3(session_id: str, final_json: Dict[str, Any]) -> str:
-    """Store final completion JSON in S3"""
+def _store_final_json_in_s3(session_id: str, final_json: Dict[str, Any], existing_key: str = None, timestamp: str = None) -> str:
+    """Store or update final completion JSON in S3"""
     try:
+        # Use provided timestamp or generate new
+        if not timestamp:
+            timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+
         s3 = _get_s3_client()
-        # Generate datetime string in format YYYYMMDDTHHMMSS
-        datetime_str = datetime.now().strftime("%Y%m%dT%H%M%S")
-        # New key format: retrieval_agent/active/{datetime}_{session_id}.json
-        key = f"retrieval_agent/active/{datetime_str}_{session_id}.json"
+        
+        # Use existing key if provided, otherwise create new
+        if existing_key:
+            key = existing_key
+            print(f"♻️ Updating existing JSON: {key}")
+        else:
+            key = f"retrieval_agent/active/{timestamp}_{session_id}.json"
+            print(f"📝 Creating new JSON: {key}")
+        
         s3.put_object(
             Bucket=PLANNING_BUCKET_NAME,
             Key=key,
@@ -121,7 +136,7 @@ def _store_final_json_in_s3(session_id: str, final_json: Dict[str, Any]) -> str:
             ContentType="application/json",
             ServerSideEncryption="AES256"
         )
-        print(f"✅ Final JSON stored in S3: s3://{PLANNING_BUCKET_NAME}/{key}")
+        print(f"✅ JSON stored/updated in S3: s3://{PLANNING_BUCKET_NAME}/{key}")
         return key
     except Exception as e:
         print(f"❌ Error storing final JSON in S3: {e}")
@@ -170,7 +185,7 @@ def _store_for_call_in_s3(session_id: str, final_json: Dict[str, Any], s3_key: s
 # Downstream Agent Integration
 # ---------------------------------------------------------------------------
 
-async def _call_planning_agent(final_json: Dict[str, Any]) -> Dict[str, Any]:
+async def _call_planning_agent(final_json: Dict[str, Any], datetime_str: str) -> Dict[str, Any]:
     """
     1. Upload requirements to the retrieval agent (POST).
     2. Poll the retrieval agent (GET) until status == completed.
@@ -179,7 +194,6 @@ async def _call_planning_agent(final_json: Dict[str, Any]) -> Dict[str, Any]:
     """
     session_id = final_json.get("session_id")
     # Generate retrieval S3 key
-    datetime_str = datetime.now().strftime("%Y%m%dT%H%M%S")
     retrieval_key = f"retrieval_agent/active/{datetime_str}_{session_id}.json"
     # Build POST payload
     payload = {
@@ -449,11 +463,34 @@ class TravelGateway:
             final_json_s3_key = None
             agent_response = None
 
-            # Get session to check if already uploaded
+            # Get session to check stored key
             session = get_session(session_id)
-            already_uploaded = session.get("data", {}).get("initial_json_uploaded", False) if session else False
+            session_data = session.get("data", {}) if session else {}
+
+            # 🔍 DEBUG: Print what we're getting
+            print(f"🔍 DEBUG - Session data retrieved: {json.dumps(session_data, indent=2)}")
+
+            # Get existing key if already created
+            existing_s3_key = session_data.get("initial_json_s3_key")
+            already_uploaded = session_data.get("initial_json_uploaded", False)
+
+            print(f"🔍 DEBUG - existing_s3_key: {existing_s3_key}")
+            print(f"🔍 DEBUG - already_uploaded: {already_uploaded}")
 
             if is_mandatory_complete:
+                # Get FRESH session data to check for existing key
+                session = get_session(session_id)
+                session_data = session.get("data", {}) if session else {}
+                existing_s3_key = session_data.get("initial_json_s3_key")
+                existing_timestamp = session_data.get("initial_timestamp")  # ← NEW
+                
+                if not existing_timestamp:
+                    existing_timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+                    update_session(session_id, {"initial_timestamp": existing_timestamp})
+                
+                print(f"🔍 Using timestamp: {existing_timestamp}")
+
+                print(f"🔍 Existing S3 key: {existing_s3_key}")
                 print("\n" + "=" * 80)
                 if is_all_complete:
                     print("🎉 ALL REQUIREMENTS COMPLETE - FINAL PLANNING")
@@ -472,21 +509,35 @@ class TravelGateway:
                 print(json.dumps(final_json, indent=2, ensure_ascii=False))
                 print("\n" + "=" * 80 + "\n")
 
-                # Store/update JSON in S3
-                final_json_s3_key = _store_final_json_in_s3(session_id, final_json)
-                # for_call_key = _store_for_call_in_s3(session_id, final_json, final_json_s3_key)
-                
-                # Only call planning agent when ALL complete
-                if is_all_complete:
-                    agent_response = await _call_planning_agent(final_json)
-                    print(f"📬 Intent agent response: {agent_response.get('status')}")
-                    print(f"📬 Retreival agent response: {agent_response.get('retrieval_response')}")
-                    print(f"📬 Planning agent response: {agent_response.get('planner_response')}")
-                
-                # Mark as uploaded (first time only)
+                # Store/update JSON in S3 - pass existing key to update same file
+                final_json_s3_key = _store_final_json_in_s3(
+                    session_id, 
+                    final_json,
+                    existing_key=existing_s3_key,
+                    timestamp=existing_timestamp  
+                )
+
+                # Save BOTH flags at once
+                update_session(session_id, {
+                    "initial_json_s3_key": final_json_s3_key,
+                    "initial_json_uploaded": True  # Always set to True
+                })
+
+                # Only mark as uploaded first time
                 if not already_uploaded:
                     update_session(session_id, {"initial_json_uploaded": True})
                     print("✅ Marked initial JSON as uploaded")
+                
+                # Only call planning agent when ALL complete
+                if is_all_complete:
+                    agent_response = await _call_planning_agent(final_json, existing_timestamp)
+                    print(f"📬 Intent agent response: {agent_response.get('status')}")
+                    print(f"📬 Retrieval agent response: {agent_response.get('retrieval_response')}")
+                    print(f"📬 Planning agent response: {agent_response.get('planner_response')}")
+                    
+                    # ✅ ADD THIS: Build PDF S3 key
+                    pdf_s3_key = f"summarizer_agent/pdf/{existing_timestamp}_{session_id}.pdf"
+                    agent_response["pdf_s3_key"] = pdf_s3_key  # Add to response
 
             # Build base response
             base_response = {
@@ -500,7 +551,8 @@ class TravelGateway:
                 "completion_status": completion_status,  
                 "optional_progress": req_data.get("optional_progress", "0/6"),  
                 "final_json_s3_key": final_json_s3_key,
-                "planning_agent_status": agent_response.get("status") if agent_response else None
+                "planning_agent_status": agent_response.get("status") if agent_response else None,
+                "pdf_s3_key": agent_response.get("pdf_s3_key") if agent_response else None  # ✅ ADD THIS
             }
 
             # Add retrieval agent data if available
