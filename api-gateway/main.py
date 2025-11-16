@@ -16,7 +16,7 @@ import requests
 import time 
 from botocore.config import Config
 
-PLANNING_BUCKET_NAME = "iss-travel-planner"  # New bucket for planning agent
+PLANNING_BUCKET_NAME = "iss-travel-planner" 
 
 # ---------------------------------------------------------------------------
 # Path setup to import shared module

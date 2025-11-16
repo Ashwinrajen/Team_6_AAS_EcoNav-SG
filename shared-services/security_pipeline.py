@@ -61,6 +61,10 @@ class SecurityPipeline:
             return self._fallback_validation(text)
 
         try:
+            injection_check = self._check_prompt_injection(text)
+            if not injection_check["is_safe"]:
+                return injection_check
+        
             # Run both moderation and travel-context checks in parallel
             moderation_result, context_result = await asyncio.gather(
                 self._check_moderation(text),
@@ -119,23 +123,44 @@ class SecurityPipeline:
                 return self._fallback_output_validation(response_text)
             
             is_safe = moderation_result["is_safe"]
+            privacy_safe = not self._contains_sensitive_data(response_text)
             
             return {
-                "is_safe": is_safe,
+                "is_safe": is_safe and privacy_safe,  # CHANGED: Consider both
                 "risk_score": moderation_result["risk_score"],
-                "threats_found": 0 if is_safe else 1,
+                "threats_found": 0 if (is_safe and privacy_safe) else 1,
                 "cleaned_input": response_text.strip(),
                 "moderation_details": moderation_result.get("details", {}),
-                "blocked_reason": f"content_policy_violation: {moderation_result.get('violation_categories', [])}" if not is_safe else None,
-                "travel_compliant": True,  # Assume output is travel-related
-                "privacy_safe": not self._contains_sensitive_data(response_text),
-                "filtered_response": "[CONTENT FILTERED]" if not is_safe else response_text,
+                "blocked_reason": f"content_policy_violation: {moderation_result.get('violation_categories', [])}" if not is_safe else ("sensitive_data" if not privacy_safe else None),
+                "travel_compliant": True,
+                "privacy_safe": privacy_safe,
+                "filtered_response": "[CONTENT FILTERED]" if not is_safe else ("[SENSITIVE DATA REDACTED]" if not privacy_safe else response_text),
                 "guardrail_active": True,
             }
             
         except Exception as e:
             print(f"[SecurityPipeline] validate_output error/timeout: {e}")
             return self._fallback_output_validation(response_text)
+        
+    def _check_prompt_injection(self, text: str) -> Dict[str, Any]:
+        """Check for prompt injection patterns"""
+        text_lower = text.lower()
+        injection_patterns = [
+            "ignore previous", "ignore all previous", "forget instructions",
+            "disregard previous", "system override", "developer mode",
+            "admin access", "bypass safety", "jailbreak"
+        ]
+        threats = sum(1 for pattern in injection_patterns if pattern in text_lower)
+        is_safe = threats == 0
+        
+        return {
+            "is_safe": is_safe,
+            "risk_score": min(1.0, threats * 0.5),
+            "threats_found": threats,
+            "cleaned_input": text.strip(),
+            "blocked_reason": "prompt_injection" if threats > 0 else None,
+            "guardrail_active": True,
+        }
 
     def generate_content_hash(self, content: str) -> str:
         """Small helper for integrity/debugging."""

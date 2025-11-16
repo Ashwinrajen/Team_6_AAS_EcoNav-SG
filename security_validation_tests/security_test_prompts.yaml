@@ -1,0 +1,2 @@
+# security_test_prompts.yaml
+- '{{user_input}}'
